@@ -23,6 +23,8 @@ import { TelegramChannelDriver } from "./infrastructure/channels/telegram/telegr
 import { mapTelegramInbound } from "./infrastructure/channels/telegram/telegram-mapper.js";
 import { TelegramBotBridgeImpl } from "./infrastructure/channels/telegram/telegram-bot-bridge.js";
 import { MiniAppServer } from "./infrastructure/http/mini-app-server.js";
+import dotenv from "dotenv"
+dotenv.config({ path: './src/.env' })
 
 const AUTH_DIR = ".data/whatsapp-auth";
 const DB_PATH = ".data/db.json";
