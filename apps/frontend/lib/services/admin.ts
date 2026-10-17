@@ -76,6 +76,16 @@ export const setShadowBan = async (targetUserId: string, banned: boolean): Promi
   if (!res.ok) throw new Error(`shadow ban update failed: ${res.status}`);
 };
 
+export const setModerator = async (targetUserId: string, granted: boolean): Promise<{ token?: string }> => {
+  const res = await adminFetch("/api/moderators/grant", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ userId: targetUserId, granted })
+  });
+  if (!res.ok) throw new Error(`moderator update failed: ${res.status}`);
+  return await res.json() as { token?: string };
+};
+
 export interface ReportedUserSummary { reportedUserId: string; reports: number; latestReportAt: string }
 export const fetchReportedUsers = async (): Promise<{ users: ReportedUserSummary[] }> => {
   const res = await adminFetch("/api/reported-users");

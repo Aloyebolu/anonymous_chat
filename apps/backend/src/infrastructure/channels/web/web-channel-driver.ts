@@ -7,6 +7,7 @@ const COMMANDS = new Set(["start", "find", "next", "leave", "report", "block", "
 
 export interface WebChannelOptions {
   readonly port: number;
+  readonly host?: string;
 }
 
 interface Client {
@@ -32,7 +33,7 @@ export class WebChannelDriver implements ChannelDriver {
   async start(receiver: (event: InboundEvent) => Promise<void>): Promise<void> {
     this.receiver = receiver;
     this.server = createServer((req, res) => void this.handle(req, res));
-    await new Promise<void>((resolve) => this.server!.listen(this.options.port, resolve));
+    await new Promise<void>((resolve) => this.server!.listen(this.options.port, this.options.host, resolve));
     const address = this.server!.address();
     this.boundPort = typeof address === "object" && address ? address.port : this.options.port;
     console.log(`Web channel API listening on http://localhost:${this.boundPort}/`);

@@ -30,18 +30,20 @@ npm run build
 npm run dev
 ```
 
-`npm run dev` uses `tsx` to execute `src/main.ts`.
+`npm run dev` uses `tsx` to execute `src/main.ts` in safe local development mode.
 
 ## Running without touching WhatsApp
 
-By default, both drivers start: the web driver on port 3000, and the WhatsApp driver
-(with a QR code prompt). If you don't want to link a real WhatsApp account yet:
+`npm run dev` uses an isolated `.data/development/` database and starts only the
+web simulator. It does not connect to Telegram or WhatsApp, so you can exercise
+onboarding, matching, chat, points, commands, and admin tools locally without
+deploying or messaging real users.
 
 ```sh
-DISABLE_WHATSAPP=1 npm run dev
+npm run dev
 ```
 
-This starts only the web driver. Open two browser tabs:
+Open two browser tabs:
 
 - Tab A: `http://localhost:3000/` with user `alice`
 - Tab B: `http://localhost:3000/` with user `bob`
@@ -63,11 +65,18 @@ When the second tab also sends `/find`, both tabs receive
 
 You can override the port with `WEB_PORT=4000 npm run dev`.
 
+Development mode does not load the production `.data/db.json` or WhatsApp auth
+state. To test with a real Telegram bot, explicitly set `ENABLE_TELEGRAM=1` and
+`TELEGRAM_BOT_TOKEN` in the local environment file; use a separate test bot since
+this sends real bot traffic. WhatsApp requires the separate explicit
+`ENABLE_WHATSAPP=1` flag and uses development-only auth state. Leave both flags
+at `0` for web-only development.
+
 ## Running with WhatsApp
 
-```sh
-npm run dev
-```
+`npm start` explicitly selects production mode and uses `.data/` for its
+configured database and WhatsApp auth. Use `DISABLE_TELEGRAM=1` or
+`DISABLE_WHATSAPP=1` to disable a production channel.
 
 Expected output:
 
@@ -121,6 +130,28 @@ points; other payment methods are a future extension.
 
 The two matched users never see each other's phone numbers through the application;
 messages are relayed through their `CommunicationIdentity`.
+
+## Human moderators
+
+The admin dashboard at `/admin` can grant moderator access to an existing user
+account. The grant creates a separate, high-entropy moderator token, shown once;
+share it privately with the moderator. It does not grant access to the full admin
+dashboard. The moderator signs in at `/moderator` and can opt in/out, choose the
+connected Telegram/WhatsApp channel for assignments, and shadow-ban or restore a
+reported account. Admins can revoke the role and rotate access by granting again.
+
+To connect both Telegram and WhatsApp to one moderator account, the moderator
+opens `/moderator`, creates a short-lived link code, and sends `/modlink CODE` to
+the bot from the other account. The bot attaches that verified channel identity
+to the same moderator account. A code expires after 10 minutes and can be used
+once.
+
+After ordinary user-to-user matches are considered, each waiting user can be
+assigned to an available moderator who has no active conversation. The user gets
+the normal connected-chat message; the moderator gets a support-assignment
+message on their selected channel. If no moderator is available, the regular
+queue and AI fallback continue to work. The AI path remains explicit that the
+partner is an assistant.
 
 ## Where WhatsApp credentials live
 

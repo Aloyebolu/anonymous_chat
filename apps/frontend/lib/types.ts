@@ -13,7 +13,7 @@ export interface AdminUser {
   readonly channel: ChannelType;
   readonly externalId: string;
   readonly eligibility: string;
-  readonly profile: { gender: string; country: string; preferredGender: string; preferredCountry?: string; priorityTier?: number; shadowBanned?: boolean } | null;
+  readonly profile: { gender: string; country: string; preferredGender: string; preferredCountry?: string; priorityTier?: number; shadowBanned?: boolean; moderator?: boolean; moderatorAvailable?: boolean } | null;
   readonly waitingMs: number | null;
   readonly conversationId: string | null;
 }

@@ -7,7 +7,7 @@
     "build": "tsc --noEmit",
     "test": "vitest run",
     "dev": "tsx src/main.ts",
-    "start": "tsx src/main.ts"
+    "start": "tsx src/start-production.ts"
   },
   "dependencies": {
     "baileys": "^6.7.9",

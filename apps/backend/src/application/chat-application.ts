@@ -74,10 +74,19 @@ export class ChatApplication {
   // ─── Inbound dispatch ───────────────────────────────────────────────────
 
   async receive(event: InboundEvent): Promise<void> {
-    const identity = await this.users.findOrCreate({
+    let identity = await this.users.findOrCreate({
       channel: event.channel,
       externalId: event.identity.externalId
     });
+
+    if (event.kind === "message" && event.content.kind === "text") {
+      const link = event.content.text.trim().match(/^\/modlink\s+([a-f0-9]{12})$/i);
+      if (link) {
+        const linkedUserId = await this.users.claimModeratorIdentity?.(identity, link[1]);
+        await this.send(identity, { kind: "text", text: linkedUserId ? MSG.moderatorLinked : MSG.moderatorLinkInvalid });
+        return;
+      }
+    }
 
     if ((await this.users.profileFor(identity.userId))?.shadowBanned) return;
 
@@ -116,6 +125,10 @@ export class ChatApplication {
           if (participant.identity.channel === AI_CHANNEL) return Promise.resolve();
           if (aiParticipant) return this.send(participant.identity, { kind: "text", text: MSG.matchWithAi });
           const other = conversation.participants.find((candidate) => candidate.userId !== participant.userId);
+          const participantProfile = await this.users.profileFor(participant.userId);
+          if (conversation.kind === "operator" && participantProfile?.moderator) {
+            return this.send(participant.identity, { kind: "text", text: MSG.moderatorAssignment });
+          }
           const [viewerProfile, otherProfile] = await Promise.all([
             this.users.profileFor(participant.userId),
             other ? this.users.profileFor(other.userId) : Promise.resolve(undefined)
@@ -474,6 +487,7 @@ private async handleMedia(identity: CommunicationIdentity, media: MediaPayload):
       await this.send(identity, { kind: "text", text: MSG.profileRequired });
       return this.resumeOnboarding(identity);
     }
+    if (profile.moderator) return this.send(identity, { kind: "text", text: MSG.moderatorUseConsole });
 
     try {
       const conversations = await this.matching.join(identity.userId);

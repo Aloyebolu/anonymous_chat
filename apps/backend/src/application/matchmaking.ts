@@ -215,6 +215,20 @@ export class MatchmakingService {
       created.push(conversation);
     }
 
+    // Real users get first chance to match. Any remaining waiters may be served
+    // by an opted-in moderator, whose selected channel identity receives the chat.
+    const moderators = await this.availableModerators();
+    const remainingForModerators = available.filter((entry) => !taken.has(entry.userId));
+    for (const entry of remainingForModerators) {
+      const moderator = moderators.find((candidate) => !taken.has(candidate.userId));
+      if (!moderator) break;
+      const conversation = await this.createModeratorConversation(entry.userId, moderator.userId, moderator.identity);
+      if (!conversation) continue;
+      taken.add(entry.userId);
+      taken.add(moderator.userId);
+      created.push(conversation);
+    }
+
     if (this.config.aiFallback.enabled) {
       const remaining = available.filter((entry) => !taken.has(entry.userId));
       const threshold = this.aiThresholdMs(remaining.length || 1);
@@ -229,6 +243,39 @@ export class MatchmakingService {
     }
 
     return created;
+  }
+
+  private async availableModerators(): Promise<{ userId: UserId; identity: import("../domain/types.js").CommunicationIdentity }[]> {
+    const identities = await this.users.allIdentities();
+    const byUser = new Map<UserId, typeof identities[number][]>();
+    for (const identity of identities) byUser.set(identity.userId, [...(byUser.get(identity.userId) ?? []), identity]);
+    const available: { userId: UserId; identity: import("../domain/types.js").CommunicationIdentity }[] = [];
+    for (const [id, channels] of byUser) {
+      const profile = await this.users.profileFor(id);
+      if (!profile?.moderator || !profile.moderatorAvailable || profile.shadowBanned ||
+        available.some((entry) => entry.userId === id) || await this.conversations.activeFor(id)) continue;
+      const identity = channels.find((candidate) => profile.moderatorChannels?.includes(candidate.channel));
+      if (identity) available.push({ userId: id, identity });
+    }
+    return available;
+  }
+
+  private async createModeratorConversation(targetId: UserId, moderatorId: UserId, moderatorIdentity: import("../domain/types.js").CommunicationIdentity): Promise<Conversation | undefined> {
+    const [targetIdentity, targetProfile] = await Promise.all([this.users.identityFor(targetId), this.users.profileFor(targetId)]);
+    if (!targetIdentity || !targetProfile || targetProfile.shadowBanned || await this.conversations.activeFor(moderatorId)) return undefined;
+    const conversation: Conversation = {
+      id: conversationId(crypto.randomUUID()),
+      participants: [
+        { userId: targetId, identity: targetIdentity },
+        { userId: moderatorId, identity: moderatorIdentity }
+      ],
+      status: "active",
+      createdAt: new Date(),
+      kind: "operator"
+    };
+    await this.queue.remove(targetId);
+    await this.conversations.save(conversation);
+    return conversation;
   }
 
   private async createHumanConversation(aId: UserId, bId: UserId): Promise<Conversation | undefined> {

@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { AI_CHANNEL, conversationId as brandConversationId, userId as brandUserId } from "../../domain/types.js";
 import type { MatchmakingConfig } from "../../application/matchmaking.js";
 import type { MatchmakingService } from "../../application/matchmaking.js";
@@ -9,6 +10,7 @@ import { applyCors, handlePreflight } from "../http/cors.js";
 
 export interface AdminServerOptions {
   readonly port: number;
+  readonly host?: string;
   readonly matchmaking: MatchmakingConfig;
   readonly authToken?: string;
 }
@@ -37,7 +39,7 @@ export class AdminServer {
     }
     if (!this.options.authToken) console.warn("[admin] ADMIN_TOKEN is unset; admin API is open to local requests.");
     this.server = createServer((req, res) => void this.handle(req, res));
-    await new Promise<void>((resolve) => this.server!.listen(this.options.port, resolve));
+    await new Promise<void>((resolve) => this.server!.listen(this.options.port, this.options.host, resolve));
     const address = this.server!.address();
     this.boundPort = typeof address === "object" && address ? address.port : this.options.port;
     console.log(`Admin API listening on http://localhost:${this.boundPort}/`);
@@ -53,9 +55,14 @@ export class AdminServer {
     applyCors(res);
     const url = new URL(req.url ?? "/", `http://localhost:${this.boundPort}`);
 
-    if (url.pathname.startsWith("/api/") && this.options.authToken) {
-      const authorization = req.headers.authorization ?? "";
-      if (authorization !== `Bearer ${this.options.authToken}`) {
+    const bearer = (req.headers.authorization ?? "").replace(/^Bearer\s+/i, "");
+    const moderatorId = bearer ? await this.moderatorForToken(bearer) : undefined;
+    const isAdmin = bearer === this.options.authToken || (!this.options.authToken && !moderatorId);
+    if (url.pathname.startsWith("/api/") && !isAdmin) {
+      const allowedForModerator = Boolean(moderatorId) && [
+        "/api/moderator/me", "/api/moderator/settings", "/api/moderator/link-code", "/api/moderator/shadow-ban"
+      ].includes(url.pathname);
+      if (!allowedForModerator) {
         res.statusCode = 401;
         res.setHeader("www-authenticate", "Bearer");
         res.end("Unauthorized");
@@ -71,10 +78,79 @@ export class AdminServer {
       }
 
       if (req.method === "POST" && url.pathname === "/api/user/shadow-ban") {
+        if (!isAdmin) { res.statusCode = 403; res.end("Admin permission required"); return; }
         const body = await readJson(req);
         const id = typeof body?.userId === "string" ? brandUserId(body.userId) : undefined;
         const banned = typeof body?.banned === "boolean" ? body.banned : undefined;
         if (!id || banned === undefined) { res.statusCode = 400; res.end("userId and banned required"); return; }
+        const profile = await this.deps.users.profileFor(id);
+        if (!profile) { res.statusCode = 404; res.end("Profile not found"); return; }
+        await this.deps.users.saveProfile({ ...profile, shadowBanned: banned });
+        if (banned) {
+          await this.deps.queue.remove(id);
+          const conversation = await this.deps.conversations.activeFor(id);
+          if (conversation) await this.deps.conversations.save({ ...conversation, status: "ended" });
+        }
+        return this.json(res, { ok: true, userId: id, shadowBanned: banned });
+      }
+
+      if (req.method === "POST" && url.pathname === "/api/moderators/grant") {
+        if (!isAdmin) { res.statusCode = 403; res.end("Admin permission required"); return; }
+        const body = await readJson(req);
+        const id = typeof body?.userId === "string" ? brandUserId(body.userId) : undefined;
+        const granted = typeof body?.granted === "boolean" ? body.granted : undefined;
+        if (!id || granted === undefined) { res.statusCode = 400; res.end("userId and granted required"); return; }
+        const profile = await this.deps.users.profileFor(id);
+        if (!profile) { res.statusCode = 404; res.end("Profile not found"); return; }
+        await this.deps.queue.remove(id);
+        if (!granted) {
+          await this.deps.users.saveProfile({ ...profile, moderator: false, moderatorAvailable: false, moderatorAccessHash: undefined, moderatorLinkCodeHash: undefined, moderatorLinkCodeExpiresAt: undefined });
+          const active = await this.deps.conversations.activeFor(id);
+          if (active) await this.deps.conversations.save({ ...active, status: "ended" });
+          return this.json(res, { ok: true, granted: false });
+        }
+        const token = randomBytes(32).toString("base64url");
+        await this.deps.users.saveProfile({ ...profile, moderator: true, moderatorAvailable: false, moderatorChannels: profile.moderatorChannels ?? [], moderatorAccessHash: hashToken(token) });
+        return this.json(res, { ok: true, granted: true, token });
+      }
+
+      if (req.method === "GET" && url.pathname === "/api/moderator/me") {
+        if (!moderatorId) { res.statusCode = 401; res.end("Moderator token required"); return; }
+        const profile = await this.deps.users.profileFor(moderatorId);
+        const identities = (await this.deps.users.allIdentities()).filter((identity) => identity.userId === moderatorId && ["telegram", "whatsapp"].includes(identity.channel));
+        const conversation = await this.deps.conversations.activeFor(moderatorId);
+        return this.json(res, { userId: moderatorId, available: profile?.moderatorAvailable ?? false, channels: profile?.moderatorChannels ?? [], connectedChannels: [...new Set(identities.map((identity) => identity.channel))], activeConversationId: conversation?.id ?? null });
+      }
+
+      if (req.method === "PATCH" && url.pathname === "/api/moderator/settings") {
+        if (!moderatorId) { res.statusCode = 401; res.end("Moderator token required"); return; }
+        const body = await readJson(req);
+        const available = typeof body?.available === "boolean" ? body.available : undefined;
+        const channels = Array.isArray(body?.channels) && body.channels.every((channel) => channel === "telegram" || channel === "whatsapp") ? [...new Set(body.channels as string[])] : undefined;
+        const profile = await this.deps.users.profileFor(moderatorId);
+        const connected = (await this.deps.users.allIdentities()).filter((identity) => identity.userId === moderatorId).map((identity) => identity.channel);
+        if (!profile?.moderator || available === undefined || !channels || channels.some((channel) => !connected.includes(channel)) || (available && channels.length === 0)) {
+          res.statusCode = 400; res.end("Choose at least one connected channel before going available"); return;
+        }
+        await this.deps.users.saveProfile({ ...profile, moderatorAvailable: available, moderatorChannels: channels });
+        return this.json(res, { ok: true, available, channels });
+      }
+
+      if (req.method === "POST" && url.pathname === "/api/moderator/link-code") {
+        if (!moderatorId) { res.statusCode = 401; res.end("Moderator token required"); return; }
+        const profile = await this.deps.users.profileFor(moderatorId);
+        if (!profile?.moderator) { res.statusCode = 403; res.end("Moderator permission required"); return; }
+        const code = randomBytes(6).toString("hex");
+        await this.deps.users.saveProfile({ ...profile, moderatorLinkCodeHash: hashToken(code), moderatorLinkCodeExpiresAt: new Date(Date.now() + 10 * 60_000).toISOString() });
+        return this.json(res, { code, expiresInSeconds: 600 });
+      }
+
+      if (req.method === "POST" && url.pathname === "/api/moderator/shadow-ban") {
+        if (!moderatorId) { res.statusCode = 401; res.end("Moderator token required"); return; }
+        const body = await readJson(req);
+        const id = typeof body?.userId === "string" ? brandUserId(body.userId) : undefined;
+        const banned = typeof body?.banned === "boolean" ? body.banned : undefined;
+        if (!id || banned === undefined || id === moderatorId) { res.statusCode = 400; res.end("A different user and banned status are required"); return; }
         const profile = await this.deps.users.profileFor(id);
         if (!profile) { res.statusCode = 404; res.end("Profile not found"); return; }
         await this.deps.users.saveProfile({ ...profile, shadowBanned: banned });
@@ -183,7 +259,7 @@ export class AdminServer {
         channel: identity.channel,
         externalId: identity.externalId,
         eligibility: eligibility?.status ?? "none",
-        profile: profile ?? null,
+        profile: profile ? { ...profile, moderatorAccessHash: undefined, moderatorLinkCodeHash: undefined, moderatorLinkCodeExpiresAt: undefined } : null,
         waitingMs: waitingByUser.get(identity.userId) ?? null,
         conversationId: activeByUser.get(identity.userId) ?? null
       });
@@ -211,7 +287,22 @@ export class AdminServer {
       }))
     };
   }
+
+  private async moderatorForToken(token: string): Promise<import("../../domain/types.js").UserId | undefined> {
+    if (!token) return undefined;
+    const candidate = Buffer.from(hashToken(token), "hex");
+    const identities = await this.deps.users.allIdentities();
+    for (const id of new Set(identities.map((identity) => identity.userId))) {
+      const profile = await this.deps.users.profileFor(id);
+      if (!profile?.moderator || !profile.moderatorAccessHash) continue;
+      const expected = Buffer.from(profile.moderatorAccessHash, "hex");
+      if (candidate.length === expected.length && timingSafeEqual(candidate, expected)) return id;
+    }
+    return undefined;
+  }
 }
+
+const hashToken = (value: string): string => createHash("sha256").update(value).digest("hex");
 
 const readJson = async (req: IncomingMessage): Promise<Record<string, unknown> | undefined> => {
   const chunks: Buffer[] = [];

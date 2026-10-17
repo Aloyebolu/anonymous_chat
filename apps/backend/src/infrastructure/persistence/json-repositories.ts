@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { userId as brandUserId, type CommunicationIdentity, type Conversation, type ConversationId, type Eligibility, type ModerationEvent, type ProfileDraft, type Report, type UserId, type UserProfile } from "../../domain/types.js";
 import type { ConversationRepository, MatchQueueEntry, MatchQueueRepository, PointsRepository, UserRepository } from "../../ports/repositories.js";
 import type { ReportRepository } from "../../ports/reports.js";
@@ -23,6 +24,27 @@ export class JsonUserRepository implements UserRepository {
     return Object.values(state.identities).find((i) => i.userId === id && (!preferredChannel || i.channel === preferredChannel));
   }
   async allIdentities(): Promise<readonly CommunicationIdentity[]> { return Object.values((await this.db.load()).identities); }
+  async claimModeratorIdentity(identity: CommunicationIdentity, code: string): Promise<UserId | undefined> {
+    let claimed: UserId | undefined;
+    const key = identityKey(identity.channel, identity.externalId);
+    const codeHash = createHash("sha256").update(code).digest("hex");
+    await this.db.mutate((state) => {
+      const target = Object.values(state.profiles).find((profile) => profile.moderator &&
+        profile.moderatorLinkCodeHash === codeHash &&
+        Boolean(profile.moderatorLinkCodeExpiresAt && Date.parse(profile.moderatorLinkCodeExpiresAt) > Date.now()));
+      if (!target) return;
+      const sourceId = state.identities[key]?.userId ?? identity.userId;
+      if (sourceId !== target.userId && (
+        state.profiles[sourceId] || state.eligibility[sourceId] ||
+        state.queue.some((entry) => entry.userId === sourceId) ||
+        Object.values(state.conversations).some((conversation) => conversation.status === "active" && conversation.participants.some((participant) => participant.userId === sourceId))
+      )) return;
+      state.identities[key] = { ...identity, userId: target.userId };
+      state.profiles[target.userId] = { ...target, moderatorLinkCodeHash: undefined, moderatorLinkCodeExpiresAt: undefined };
+      claimed = target.userId;
+    });
+    return claimed;
+  }
   async saveProfile(profile: UserProfile): Promise<void> { await this.db.mutate((s) => { s.profiles[profile.userId] = profile; }); }
   async profileFor(id: UserId): Promise<UserProfile | undefined> { return (await this.db.load()).profiles[id]; }
   async saveEligibility(eligibility: Eligibility): Promise<void> { await this.db.mutate((s) => { s.eligibility[eligibility.userId] = eligibility; }); }

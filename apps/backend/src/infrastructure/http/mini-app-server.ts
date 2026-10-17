@@ -17,6 +17,7 @@ interface TelegramUser {
 
 export interface MiniAppServerOptions {
   readonly port: number;
+  readonly host?: string;
   readonly botToken: string;
 }
 
@@ -31,7 +32,7 @@ export class MiniAppServer {
   async start(): Promise<void> {
     if (!this.options.botToken) throw new Error("TELEGRAM_BOT_TOKEN is required for the Mini App API.");
     this.server = createServer((req, res) => void this.handle(req, res));
-    await new Promise<void>((resolve) => this.server!.listen(this.options.port, resolve));
+    await new Promise<void>((resolve) => this.server!.listen(this.options.port, this.options.host, resolve));
     console.log(`Telegram Mini App API listening on http://localhost:${this.options.port}/`);
   }
 

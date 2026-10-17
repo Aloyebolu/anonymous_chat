@@ -83,6 +83,10 @@ Rules that stay true across all phases:
   on unwatch. Off by default for privacy.
 - Operator match: `MatchmakingService.forceOperatorMatch`, admin
   `/api/operator/match`.
+- Moderator flow: admin-granted least-privilege tokens, a dedicated web page,
+  availability and channel selection, temporary cross-channel identity linking,
+  automatic support assignment before AI fallback, and moderator shadow-ban
+  controls.
 - Persistence: `JsonDatabase` + JSON-backed user / queue / conversation / report
   repositories.
 - Admin HTTP server with `/api/state`, `/api/reports`, `/api/watch`,
@@ -104,7 +108,9 @@ Rules that stay true across all phases:
   real prompt, no memory, no safety layer.
 - Moderation: text rate/spam checks and event history exist; media abuse controls and
   time-based temporary bans remain.
-- Admin: read-mostly; the only mutating action is "match operator with user".
+- Admin and moderation APIs support role grants/revocation, manual matches,
+  shadow-ban controls, and moderator availability. Add an audit log for manual
+  moderation actions before expanding moderator privileges.
 - Persistence: JSON file. Single-process only, no locking across processes.
 
 ### Not started
@@ -114,7 +120,7 @@ Rules that stay true across all phases:
 - Point-history UI, additional point-earning activities, and reward redemption.
 - Deployment hardening for the Mini App, including HTTPS origins, BotFather
   setup, and production persistence/monitoring.
-- Auth on any HTTP surface.
+- Fine-grained permission audit trail and session/device management.
 - Deployment (Docker, reverse proxy, TLS, process manager).
 - Structured logging, metrics, error reporting.
 - Postgres.

@@ -4,6 +4,7 @@ export interface UserRepository {
   findOrCreate(identity: Omit<CommunicationIdentity, "userId">): Promise<CommunicationIdentity>;
   identityFor(userId: UserId, preferredChannel?: string): Promise<CommunicationIdentity | undefined>;
   allIdentities(): Promise<readonly CommunicationIdentity[]>;
+  claimModeratorIdentity?(identity: CommunicationIdentity, code: string): Promise<UserId | undefined>;
   saveProfile(profile: UserProfile): Promise<void>;
   profileFor(userId: UserId): Promise<UserProfile | undefined>;
   saveEligibility(eligibility: Eligibility): Promise<void>;

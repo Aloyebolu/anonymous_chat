@@ -30,6 +30,10 @@ a Telegram Mini App, robust onboarding, a useful command set, and clear bot repl
   profiles instead of resetting their flow.
 - Telegram startup no longer falls back to an embedded credential. Set
   `TELEGRAM_BOT_TOKEN` in the runtime environment.
+- `npm run dev` is safe local mode: isolated `.data/development` persistence,
+  localhost-only web/admin/API binds, stub AI, and no Telegram/WhatsApp connection
+  unless explicitly enabled with `ENABLE_TELEGRAM=1` / `ENABLE_WHATSAPP=1`.
+  `npm start` selects production mode and `.data` persistence.
 - Points now have a persisted JSON ledger, `/points`, idempotent message awards,
   a 20 point per UTC day chat cap, Mini App daily check-in/profile completion
   rewards, and points-funded VIP.
@@ -48,6 +52,12 @@ a Telegram Mini App, robust onboarding, a useful command set, and clear bot repl
 - Admin routes require Bearer auth when `ADMIN_TOKEN` is configured. Production
   refuses to start the admin API without it; local development warns and remains
   open when unset. Configure a strong token before deployment.
+- Human moderators can be granted from the admin user list. Each receives a
+  separate least-privilege token and uses `/moderator` to opt in/out, select
+  channels, link another account with a 10-minute `/modlink` code, and shadow-ban
+  or restore accounts. Eligible waiting users are assigned to idle moderators
+  before AI fallback; moderators receive an assignment on the opted-in channel,
+  while users see the normal connected-chat message. Revocation ends active chats.
 - Treat any previously committed Telegram token as compromised: rotate it using
   BotFather and keep the replacement only in secret configuration.
 - The Next.js UI now includes a Telegram Mini App at `/miniapp`.
@@ -84,3 +94,9 @@ complete based only on a plan or mock screen.
   profile settings, daily/profile rewards, point-funded VIP, strict matching,
   VIP partner-gender visibility, and VIP gender switching. Added `/app`, `/vip`,
   `/end`, connected-match guidance, setup docs, and environment examples.
+- 2026-10-17: Added safe local development mode with isolated persistence, local
+  HTTP binding, stub AI, explicit live-channel opt-ins, and a production start
+  entry point. Backend build and local startup check passed.
+- 2026-10-17: Added moderator tokens, availability and channel selection, secure
+  channel linking, automatic overflow matches, support notifications, and
+  shadow-ban controls. Backend/frontend production builds pass; tests were not run.

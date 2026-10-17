@@ -26,20 +26,32 @@ import { MiniAppServer } from "./infrastructure/http/mini-app-server.js";
 import dotenv from "dotenv"
 dotenv.config({ path: './src/.env' })
 
-const AUTH_DIR = ".data/whatsapp-auth";
-const DB_PATH = ".data/db.json";
+const IS_DEVELOPMENT = process.env.APP_MODE !== "production" && process.env.NODE_ENV !== "production";
+const DATA_DIR = process.env.DATA_DIR ?? (IS_DEVELOPMENT ? ".data/development" : ".data");
+const AUTH_DIR = process.env.WHATSAPP_AUTH_DIR ?? `${DATA_DIR}/whatsapp-auth`;
+const DB_PATH = process.env.DB_PATH ?? `${DATA_DIR}/db.json`;
 const WEB_PORT = Number(process.env.WEB_PORT ?? 3000);
 const ADMIN_PORT = Number(process.env.ADMIN_PORT ?? 3001);
 const MINI_APP_API_PORT = Number(process.env.MINI_APP_API_PORT ?? 3003);
+const HTTP_HOST = process.env.HTTP_HOST ?? (IS_DEVELOPMENT ? "127.0.0.1" : "0.0.0.0");
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 const SWEEP_INTERVAL_MS = 5_000;
-const AI_URL = process.env.AI_URL || "http://localhost:4000/api/chat2";
+const AI_URL = process.env.AI_URL || (IS_DEVELOPMENT ? undefined : "http://localhost:4000/api/chat2");
 
-const WHATSAPP_ENABLED = process.env.DISABLE_WHATSAPP !== "1";
-const TELEGRAM_ENABLED = process.env.DISABLE_TELEGRAM !== "1";
+const WHATSAPP_ENABLED = IS_DEVELOPMENT
+  ? process.env.ENABLE_WHATSAPP === "1"
+  : process.env.DISABLE_WHATSAPP !== "1";
+const TELEGRAM_ENABLED = IS_DEVELOPMENT
+  ? process.env.ENABLE_TELEGRAM === "1"
+  : process.env.DISABLE_TELEGRAM !== "1";
 const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 async function main(): Promise<void> {
+  if (IS_DEVELOPMENT) {
+    console.log("Development mode: local web simulator only; production data and chat accounts are untouched.");
+    if (process.env.ENABLE_TELEGRAM === "1") console.warn("Development mode: connecting to the real Telegram bot because ENABLE_TELEGRAM=1.");
+    if (process.env.ENABLE_WHATSAPP === "1") console.warn("Development mode: connecting to the real WhatsApp account because ENABLE_WHATSAPP=1.");
+  }
   // ---- Persistence ---------------------------------------------------------
   const db = new JsonDatabase(DB_PATH);
   const users = new JsonUserRepository(db);
@@ -59,7 +71,7 @@ async function main(): Promise<void> {
   // ---- Channels ------------------------------------------------------------
   const registry = new ChannelRegistry();
 
-  const web = new WebChannelDriver({ port: WEB_PORT });
+  const web = new WebChannelDriver({ port: WEB_PORT, host: HTTP_HOST });
   registry.register(web);
 
   // ---- Application ---------------------------------------------------------
@@ -77,13 +89,13 @@ async function main(): Promise<void> {
 
   const admin = new AdminServer(
     { users, queue, conversations, reports, log, matching, moderationEvents },
-    { port: ADMIN_PORT, matchmaking: MATCHMAKING_CONFIG, authToken: ADMIN_TOKEN }
+    { port: ADMIN_PORT, host: HTTP_HOST, matchmaking: MATCHMAKING_CONFIG, authToken: ADMIN_TOKEN }
   );
   await admin.start();
 
   let miniApp: MiniAppServer | undefined;
-  if (TELEGRAM_TOKEN) {
-    miniApp = new MiniAppServer(users, points, { port: MINI_APP_API_PORT, botToken: TELEGRAM_TOKEN });
+  if (TELEGRAM_TOKEN && (!IS_DEVELOPMENT || TELEGRAM_ENABLED)) {
+    miniApp = new MiniAppServer(users, points, { port: MINI_APP_API_PORT, host: HTTP_HOST, botToken: TELEGRAM_TOKEN });
     await miniApp.start();
   }
 
@@ -111,7 +123,9 @@ async function main(): Promise<void> {
     registry.register(whatsapp);
     console.log(`WhatsApp driver started. Auth state in ${AUTH_DIR}.`);
   } else {
-    console.log("WhatsApp disabled (DISABLE_WHATSAPP=1).");
+    console.log(IS_DEVELOPMENT
+      ? "WhatsApp disabled in development (set ENABLE_WHATSAPP=1 to connect intentionally)."
+      : "WhatsApp disabled (DISABLE_WHATSAPP=1).");
   }
 
   console.log(`State stored in ${DB_PATH}.`);

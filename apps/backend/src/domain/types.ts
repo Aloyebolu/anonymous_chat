@@ -35,6 +35,12 @@ export interface UserProfile {
   readonly age?: number;
   readonly language?: string;
   readonly vipUntil?: string;
+  readonly moderator?: boolean;
+  readonly moderatorAvailable?: boolean;
+  readonly moderatorChannels?: readonly string[];
+  readonly moderatorAccessHash?: string;
+  readonly moderatorLinkCodeHash?: string;
+  readonly moderatorLinkCodeExpiresAt?: string;
 }
 
 export const isVipProfile = (profile: UserProfile | undefined, now = Date.now()): boolean =>

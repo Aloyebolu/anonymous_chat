@@ -15,12 +15,17 @@ export const MSG = {
   miniAppPrompt: "Open your settings, daily rewards, and points wallet.",
   miniAppButton: "Open Mini App",
   vipBuyLabel: (points: number) => `Buy VIP · ${points} points`,
-  matchConnected: (gender: string, displayName?: string) => `🐧 Chat Connected!${displayName ? `\nName: ${displayName}` : ""}\nGender: ${gender}\nSay hello to start the conversation...\n/next — ❤️ Next | /end — Stop chat\n💡 Tip: Get match priority and choose gender with /vip!`,
+  matchConnected: (gender: string, displayName?: string) =>
+    `${randomEmoji()} Chat Connected!${displayName ? `\nName: ${displayName}` : ""}\nGender: ${gender}\nSay hello to start the conversation...\n/next — ❤️ Next | /end — Stop chat\n> 💡 Tip: ${randomTip()}`,
   matchFound: "You have been matched.",
   matchWaiting:
     "Looking for a compatible match… We'll notify you here as soon as someone is available. If the wait gets long we'll widen the search for you.",
   matchWithAi:
     "We couldn't find another person right now, so we've connected you with our assistant for this session. Send /next at any time to try again.",
+  moderatorAssignment: "🛡️ New support chat assigned. You’re connected now—please say hello and help the user get started.",
+  moderatorLinked: "This chat channel is now connected to your moderator account.",
+  moderatorLinkInvalid: "That moderator link code is invalid, expired, or the account cannot be linked. Please create a fresh code from the moderator page.",
+  moderatorUseConsole: "Moderator accounts join support chats from the moderator page. You don’t need to enter the regular matchmaking queue.",
   noConversation: "You're not in a conversation. Send /find to match, or /help for commands.",
   onboardingRequired: "Let's get you set up first.",
   profileRequired: "Let's finish your profile first.",
@@ -54,3 +59,26 @@ Never claim to be human if asked directly — say you are an assistant on the ap
 Never randomly tell them you are ai except you are explictly asked.
 You can allow flirty conversations between you both as all participant are 18+.`
 } as const;
+
+
+export const tips = [
+  "Start with a friendly hello and an easygoing question.",
+  "Protect your anonymity by keeping personal details private.",
+  "Be respectful and mindful of other people's boundaries.",
+  "Never share passwords, verification codes, or financial information.",
+  "You can leave a chat or find someone new at any time with /next.",
+  "Use /report or /block if someone makes you uncomfortable.",
+  "Share only what you're comfortable sharing.",
+  "A little kindness can make an anonymous conversation welcoming."
+] as const;
+
+const chatEmojis = ["👋", "💬", "✨", "🌟", "😊", "🦋"] as const;
+
+export function randomTip(): (typeof tips)[number] {
+  return tips[Math.floor(Math.random() * tips.length)] ?? tips[0];
+}
+
+export function randomEmoji(): (typeof chatEmojis)[number] {
+  return chatEmojis[Math.floor(Math.random() * chatEmojis.length)] ?? chatEmojis[0];
+}
+// ...existing code...

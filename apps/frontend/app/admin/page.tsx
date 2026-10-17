@@ -7,7 +7,7 @@ import { UserTable } from "@/components/admin/UserTable";
 import { WatchPanel } from "@/components/admin/WatchPanel";
 import { STRINGS } from "@/lib/constants";
 import { useAdminState } from "@/lib/hooks/useAdminState";
-import { createOperatorSession, fetchModerationEvents, fetchReportedUsers, operatorMatch, readAdminToken, setShadowBan, unwatchConversation, watchConversation, writeAdminToken, type ModerationEventSummary, type ReportedUserSummary } from "@/lib/services/admin";
+import { createOperatorSession, fetchModerationEvents, fetchReportedUsers, operatorMatch, readAdminToken, setModerator, setShadowBan, unwatchConversation, watchConversation, writeAdminToken, type ModerationEventSummary, type ReportedUserSummary } from "@/lib/services/admin";
 
 export default function AdminPage() {
   const { state, reports, refresh } = useAdminState();
@@ -18,6 +18,7 @@ export default function AdminPage() {
   const [moderationEvents, setModerationEvents] = useState<ModerationEventSummary[]>([]);
   const [adminToken, setAdminToken] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [issuedModeratorToken, setIssuedModeratorToken] = useState("");
 
   useEffect(() => {
     setAdminToken(readAdminToken());
@@ -49,6 +50,17 @@ export default function AdminPage() {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : STRINGS.operatorMatchFailed);
+    }
+  }, [refresh]);
+
+  const handleModerator = useCallback(async (userId: string, granted: boolean) => {
+    try {
+      const result = await setModerator(userId, granted);
+      setIssuedModeratorToken(result.token ?? "");
+      setError(null);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update moderator access");
     }
   }, [refresh]);
 
@@ -90,6 +102,7 @@ export default function AdminPage() {
         <p className="muted">{STRINGS.adminTokenHelp}</p>
       </section>
       {error && <p style={{ padding: "0 16px", color: "#721c24" }}>{error}</p>}
+      {issuedModeratorToken && <section className="card" style={{ margin: 16, border: "2px solid #6c5ce7" }}><h2>Moderator access token — copy it now</h2><p>This secret is shown once. Share it privately with the moderator. They can open <code>/moderator</code> and connect another channel from that page.</p><input readOnly value={issuedModeratorToken} onFocus={(event) => event.currentTarget.select()} style={{ width: "100%" }} /><button onClick={() => { void navigator.clipboard.writeText(issuedModeratorToken); }}>Copy token</button><button onClick={() => setIssuedModeratorToken("")}>Dismiss</button></section>}
 
       <div className="admin-grid">
         <section className="card">
@@ -132,7 +145,7 @@ export default function AdminPage() {
 
         <section className="card" style={{ gridColumn: "1 / -1" }}>
           <h2>{STRINGS.usersTitle}</h2>
-          {state && <UserTable users={state.users} onShadowBan={(id, banned) => void handleShadowBan(id, banned)} />}
+          {state && <UserTable users={state.users} onShadowBan={(id, banned) => void handleShadowBan(id, banned)} onModerator={(id, granted) => void handleModerator(id, granted)} />}
         </section>
 
         <section className="card" style={{ gridColumn: "1 / -1" }}>

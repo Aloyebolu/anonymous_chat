@@ -1,0 +1,35 @@
+{
+  "identities": {
+    "operator:sds:9b2f95a7-e24d-43bb-a928-ee65846d1cc8": {
+      "channel": "operator",
+      "externalId": "sds:9b2f95a7-e24d-43bb-a928-ee65846d1cc8",
+      "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+    },
+    "operator:muuna:1979e458-c77e-4b9f-a421-96f4612fb029": {
+      "channel": "operator",
+      "externalId": "muuna:1979e458-c77e-4b9f-a421-96f4612fb029",
+      "userId": "f6a7568e-7dfc-49bc-a363-696de8e9e090"
+    }
+  },
+  "profiles": {
+    "d66faca3-b44e-4eb5-9e74-8dd406919d7e": {
+      "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+      "gender": "female",
+      "country": "Nigeria",
+      "preferredGender": "male",
+      "moderator": true,
+      "moderatorAvailable": false,
+      "moderatorChannels": [],
+      "moderatorAccessHash": "86be8aa851e651c4529a516a03c538d164fc94e33c38cd1c47d9e176c92b9491",
+      "moderatorLinkCodeHash": "09d567ad4e7279048052df0b6af1120ab2af95f62b391864e7a1e4e5f2c3ced7",
+      "moderatorLinkCodeExpiresAt": "2026-10-17T12:57:27.946Z"
+    }
+  },
+  "eligibility": {},
+  "drafts": {},
+  "queue": [],
+  "conversations": {},
+  "reports": {},
+  "pointEvents": [],
+  "moderationEvents": {}
+}
