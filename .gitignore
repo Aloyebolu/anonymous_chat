@@ -1,0 +1,26 @@
+node_modules/
+
+# Environment files
+apps/backend/.env
+apps/backend/.env.*
+!apps/backend/.env.example
+apps/frontend/.env
+apps/frontend/.env.*
+!apps/frontend/.env.example
+
+# Express/backend output
+apps/backend/dist/
+apps/backend/logs/
+apps/backend/*.log
+
+# Vercel/frontend output
+apps/frontend/.vercel/
+apps/frontend/dist/
+apps/frontend/build/
+apps/frontend/*.log
+
+# Debug logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
