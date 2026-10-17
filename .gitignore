@@ -18,6 +18,7 @@ apps/frontend/.vercel/
 apps/frontend/dist/
 apps/frontend/build/
 apps/frontend/*.log
+apps/frontend/.next
 
 # Debug logs
 *.log
