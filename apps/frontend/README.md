@@ -12,13 +12,15 @@ cd ui && npm install && npm run dev     # Next.js on http://localhost:3002
 
 Ports:
 
-- `3000` — backend web channel API (`/api/stream`, `/api/send`, `/health`)
-- `3001` — admin API (`/api/state`, `/api/reports`, `/api/watch`, `/api/operator/match`)
+- `3000` — backend web channel, admin API, and Telegram Mini App API on one port
+  (`/api/stream`, `/api/send`, `/api/state`, `/api/miniapp/*`, `/health`)
 - `3002` — Next.js UI (chat at `/`, admin at `/admin`)
 
 Env vars:
 
-- `WEB_PORT`, `ADMIN_PORT`
+- `NEXT_PUBLIC_WEB_API` — backend base URL for chat; the admin API uses this too
+  unless `NEXT_PUBLIC_ADMIN_API` is set separately
+- `NEXT_PUBLIC_MINI_APP_API` — optional backend base URL override for the Telegram Mini App
 - `DISABLE_WHATSAPP=1` to skip Baileys
 - `AI_URL` — if set, `HttpAiService` POSTs `{ conversationId, userId, text }` to that URL and expects `{ reply: string }`. Unset uses `StubAiService`.
 

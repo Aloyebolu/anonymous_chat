@@ -63,7 +63,9 @@ Walk through the flow in each tab:
 When the second tab also sends `/find`, both tabs receive
 `You have been matched. Say hello!`. Messages typed in either tab appear in the other.
 
-You can override the port with `WEB_PORT=4000 npm run dev`.
+The web channel, admin API, and Telegram Mini App API share one HTTP port.
+Set `PORT` on Render; locally, the default is `3000` (`WEB_PORT` remains available
+as a local override).
 
 Development mode does not load the production `.data/db.json` or WhatsApp auth
 state. To test with a real Telegram bot, explicitly set `ENABLE_TELEGRAM=1` and
@@ -114,9 +116,10 @@ Conversation controls:
 
 ## Telegram Mini App
 
-The Mini App is served by the frontend at `/miniapp`; the backend's separate
-Mini App API defaults to port 3003. Set `TELEGRAM_MINI_APP_URL` to the HTTPS
-frontend URL and `NEXT_PUBLIC_MINI_APP_API` to the HTTPS API origin. Set the
+The Mini App is served by the frontend at `/miniapp`; its backend API is mounted
+under `/api/miniapp/` on the shared HTTP port. Set `TELEGRAM_MINI_APP_URL` to the
+HTTPS frontend URL and `NEXT_PUBLIC_MINI_APP_API` to the HTTPS backend origin
+(or use `NEXT_PUBLIC_WEB_API` for all backend routes). Set the
 Telegram bot's Mini App domain in BotFather, deploy both services behind HTTPS,
 then send `/app` to the bot. The backend verifies Telegram `initData` and rejects
 expired or invalid signatures before loading or changing account data.
@@ -257,8 +260,11 @@ Tuning examples:
 
 ## Admin dashboard
 
-`npm run dev` also starts an admin dashboard at `http://localhost:3001/` (override with
-`ADMIN_PORT`). It shows:
+`npm run dev` also exposes the admin API on the same port as the web channel:
+`http://localhost:3000/api/` (or the configured `PORT` / `WEB_PORT`). The web
+channel uses `/api/stream` and `/api/send`; the admin API uses its own routes such
+as `/api/state`, `/api/reports`, and `/api/watch`. The Telegram Mini App API is
+mounted under `/api/miniapp/` when a bot token is configured. The dashboard shows:
 
 - **Waiting room** — every queued user, their channel and how long they've been waiting.
 - **Active sessions** — every active conversation and its participants by channel/external id.

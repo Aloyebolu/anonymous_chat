@@ -1,6 +1,6 @@
 import type { AdminReport, AdminState, MessageLogEntry } from "../types";
 
-const ADMIN = process.env.NEXT_PUBLIC_ADMIN_API ?? "http://localhost:3001";
+const ADMIN = process.env.NEXT_PUBLIC_ADMIN_API ?? process.env.NEXT_PUBLIC_WEB_API;
 
 export const readAdminToken = (): string => window.sessionStorage.getItem("adminToken") ?? "";
 export const writeAdminToken = (token: string): void => {

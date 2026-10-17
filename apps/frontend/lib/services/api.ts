@@ -1,6 +1,6 @@
 import { STRINGS } from "../constants";
 
-const WEB = process.env.NEXT_PUBLIC_WEB_API ?? "http://localhost:3000";
+const WEB = process.env.NEXT_PUBLIC_WEB_API;
 
 export interface SendPayload {
   readonly user: string;

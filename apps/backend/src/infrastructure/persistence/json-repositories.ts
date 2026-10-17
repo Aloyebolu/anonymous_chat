@@ -8,7 +8,7 @@ import type { JsonDatabase, JsonDatabaseShape } from "./json-database.js";
 const identityKey = (channel: string, externalId: string) => `${channel}:${externalId}`;
 
 export class JsonUserRepository implements UserRepository {
-  constructor(private readonly db: JsonDatabase) {}
+  constructor(private readonly db: JsonDatabase) { }
 
   async findOrCreate(input: Omit<CommunicationIdentity, "userId">): Promise<CommunicationIdentity> {
     const state = await this.db.load();
@@ -34,13 +34,14 @@ export class JsonUserRepository implements UserRepository {
         Boolean(profile.moderatorLinkCodeExpiresAt && Date.parse(profile.moderatorLinkCodeExpiresAt) > Date.now()));
       if (!target) return;
       const sourceId = state.identities[key]?.userId ?? identity.userId;
+      console.log({ sourceId, targetUserId: target.userId })
       if (sourceId !== target.userId && (
         state.profiles[sourceId] || state.eligibility[sourceId] ||
         state.queue.some((entry) => entry.userId === sourceId) ||
         Object.values(state.conversations).some((conversation) => conversation.status === "active" && conversation.participants.some((participant) => participant.userId === sourceId))
       )) return;
       state.identities[key] = { ...identity, userId: target.userId };
-      state.profiles[target.userId] = { ...target, moderatorLinkCodeHash: undefined, moderatorLinkCodeExpiresAt: undefined };
+      state.profiles[target.userId] = { ...target, moderatorLinkCodeHash: undefined, moderatorLinkCodeExpiresAt: undefined, moderatorChannels: [...target.moderatorChannels || [], identity.channel] };
       claimed = target.userId;
     });
     return claimed;
@@ -58,7 +59,7 @@ export class JsonUserRepository implements UserRepository {
 }
 
 export class JsonMatchQueueRepository implements MatchQueueRepository {
-  constructor(private readonly db: JsonDatabase) {}
+  constructor(private readonly db: JsonDatabase) { }
   async enqueue(id: UserId): Promise<void> {
     const at = new Date().toISOString();
     await this.db.mutate((s) => {
@@ -74,7 +75,7 @@ export class JsonMatchQueueRepository implements MatchQueueRepository {
 }
 
 export class JsonConversationRepository implements ConversationRepository {
-  constructor(private readonly db: JsonDatabase) {}
+  constructor(private readonly db: JsonDatabase) { }
   async save(conversation: Conversation): Promise<void> { await this.db.mutate((s) => { s.conversations[conversation.id] = conversation; }); }
   async activeFor(userId: UserId): Promise<Conversation | undefined> {
     const state = await this.db.load();
@@ -88,7 +89,7 @@ export class JsonConversationRepository implements ConversationRepository {
 }
 
 export class JsonReportRepository implements ReportRepository {
-  constructor(private readonly db: JsonDatabase) {}
+  constructor(private readonly db: JsonDatabase) { }
   async save(report: Report): Promise<void> { await this.db.mutate((s) => { s.reports[report.id] = report; }); }
   async all(): Promise<readonly Report[]> {
     const state = await this.db.load();
@@ -99,7 +100,7 @@ export class JsonReportRepository implements ReportRepository {
 const DAILY_POINT_CAP = 20;
 
 export class JsonPointsRepository implements PointsRepository {
-  constructor(private readonly db: JsonDatabase) {}
+  constructor(private readonly db: JsonDatabase) { }
   async balance(id: UserId): Promise<number> {
     return (await this.db.load()).pointEvents
       .filter((event) => event.userId === id)
@@ -141,7 +142,7 @@ export class JsonPointsRepository implements PointsRepository {
 }
 
 export class JsonModerationEventRepository implements ModerationEventRepository {
-  constructor(private readonly db: JsonDatabase) {}
+  constructor(private readonly db: JsonDatabase) { }
   async save(event: ModerationEvent): Promise<void> {
     await this.db.mutate((state) => {
       state.moderationEvents[event.id] = event;

@@ -76,6 +76,21 @@ describe("web channel driver", () => {
     }
   });
 
+  it("routes non-web endpoints to the shared server handler", async () => {
+    const driver = new WebChannelDriver({ port: 0 });
+    await driver.start(async () => {}, (_req, res) => {
+      res.statusCode = 200;
+      res.end("admin route");
+    });
+    try {
+      const res = await fetch(`${baseUrl(driver)}/api/state`);
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("admin route");
+    } finally {
+      await driver.stop();
+    }
+  });
+
   it("does not throw when sending outbound to a user with no connected clients", async () => {
     const driver = new WebChannelDriver({ port: 0 });
     await driver.start(async () => {});

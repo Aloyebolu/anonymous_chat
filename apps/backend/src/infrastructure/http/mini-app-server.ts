@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { isVipProfile, VIP_CONFIG, userId, type UserProfile } from "../../domain/types.js";
 import type { PointsRepository, UserRepository } from "../../ports/repositories.js";
 import { applyCors, handlePreflight } from "./cors.js";
@@ -16,36 +16,29 @@ interface TelegramUser {
 }
 
 export interface MiniAppServerOptions {
-  readonly port: number;
-  readonly host?: string;
   readonly botToken: string;
 }
 
 export class MiniAppServer {
-  private server?: Server;
   constructor(
     private readonly users: UserRepository,
     private readonly points: PointsRepository,
     private readonly options: MiniAppServerOptions
   ) {}
 
-  async start(): Promise<void> {
+  validateConfiguration(): void {
     if (!this.options.botToken) throw new Error("TELEGRAM_BOT_TOKEN is required for the Mini App API.");
-    this.server = createServer((req, res) => void this.handle(req, res));
-    await new Promise<void>((resolve) => this.server!.listen(this.options.port, this.options.host, resolve));
-    console.log(`Telegram Mini App API listening on http://localhost:${this.options.port}/`);
   }
 
-  async stop(): Promise<void> {
-    if (this.server) await new Promise<void>((resolve) => this.server!.close(() => resolve()));
-    this.server = undefined;
+  async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    return this.handle(req, res);
   }
 
   private async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     if (req.method === "OPTIONS") return handlePreflight(res);
     applyCors(res);
     res.setHeader("content-type", "application/json");
-    const url = new URL(req.url ?? "/", `http://localhost:${this.options.port}`);
+    const url = new URL(req.url ?? "/", "http://localhost");
     try {
       const initData = parseAuthorization(req.headers.authorization);
       const telegramUser = initData ? verifyTelegramInitData(initData, this.options.botToken) : undefined;

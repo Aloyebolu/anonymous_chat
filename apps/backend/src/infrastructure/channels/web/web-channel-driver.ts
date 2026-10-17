@@ -1,4 +1,4 @@
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type RequestListener, type Server, type ServerResponse } from "node:http";
 import { userId } from "../../../domain/types.js";
 import type { ChannelCapabilities, ChannelDriver, ChannelRecipient, InboundEvent, OutboundMessage } from "../../../ports/channels.js";
 import { applyCors, handlePreflight } from "../../http/cors.js";
@@ -24,14 +24,16 @@ export class WebChannelDriver implements ChannelDriver {
   private server?: Server;
   private boundPort?: number;
   private receiver?: (event: InboundEvent) => Promise<void>;
+  private fallbackHandler?: RequestListener;
   private readonly clients = new Map<string, Set<Client>>();
 
   constructor(private readonly options: WebChannelOptions) {}
 
   get port(): number | undefined { return this.boundPort; }
 
-  async start(receiver: (event: InboundEvent) => Promise<void>): Promise<void> {
+  async start(receiver: (event: InboundEvent) => Promise<void>, fallbackHandler?: RequestListener): Promise<void> {
     this.receiver = receiver;
+    this.fallbackHandler = fallbackHandler;
     this.server = createServer((req, res) => void this.handle(req, res));
     await new Promise<void>((resolve) => this.server!.listen(this.options.port, this.options.host, resolve));
     const address = this.server!.address();
@@ -44,6 +46,7 @@ export class WebChannelDriver implements ChannelDriver {
     this.clients.clear();
     if (this.server) await new Promise<void>((resolve) => this.server!.close(() => resolve()));
     this.server = undefined;
+    this.fallbackHandler = undefined;
   }
 
   async sendMessage(recipient: ChannelRecipient, message: OutboundMessage): Promise<void> {
@@ -64,6 +67,10 @@ export class WebChannelDriver implements ChannelDriver {
     }
     if (req.method === "GET" && url.pathname === "/api/stream") return this.serveStream(url, res);
     if (req.method === "POST" && url.pathname === "/api/send") return this.acceptSend(req, res);
+    if (this.fallbackHandler) {
+      this.fallbackHandler(req, res);
+      return;
+    }
     res.statusCode = 404;
     res.end("Not found");
   }

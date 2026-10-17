@@ -23,7 +23,7 @@ interface TelegramMiniApp {
 }
 declare global { interface Window { Telegram?: { WebApp: TelegramMiniApp } } }
 
-const API = process.env.NEXT_PUBLIC_MINI_APP_API ?? "http://localhost:3003";
+const API = process.env.NEXT_PUBLIC_MINI_APP_API ?? process.env.NEXT_PUBLIC_WEB_API ?? "http://localhost:3000";
 const COPY = {
   title: "Your little corner",
   subtitle: "Make your chats feel more like you.",

@@ -30,9 +30,7 @@ const IS_DEVELOPMENT = process.env.APP_MODE !== "production" && process.env.NODE
 const DATA_DIR = process.env.DATA_DIR ?? (IS_DEVELOPMENT ? ".data/development" : ".data");
 const AUTH_DIR = process.env.WHATSAPP_AUTH_DIR ?? `${DATA_DIR}/whatsapp-auth`;
 const DB_PATH = process.env.DB_PATH ?? `${DATA_DIR}/db.json`;
-const WEB_PORT = Number(process.env.WEB_PORT ?? 3000);
-const ADMIN_PORT = Number(process.env.ADMIN_PORT ?? 3001);
-const MINI_APP_API_PORT = Number(process.env.MINI_APP_API_PORT ?? 3003);
+const HTTP_PORT = Number(process.env.PORT ?? process.env.WEB_PORT ?? 3000);
 const HTTP_HOST = process.env.HTTP_HOST ?? (IS_DEVELOPMENT ? "127.0.0.1" : "0.0.0.0");
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 const SWEEP_INTERVAL_MS = 5_000;
@@ -71,7 +69,7 @@ async function main(): Promise<void> {
   // ---- Channels ------------------------------------------------------------
   const registry = new ChannelRegistry();
 
-  const web = new WebChannelDriver({ port: WEB_PORT, host: HTTP_HOST });
+  const web = new WebChannelDriver({ port: HTTP_PORT, host: HTTP_HOST });
   registry.register(web);
 
   // ---- Application ---------------------------------------------------------
@@ -84,20 +82,27 @@ async function main(): Promise<void> {
   // The single receive callback every driver funnels into.
   const receive = (event: Parameters<ChatApplication["receive"]>[0]) => app.receive(event);
 
-  // ---- Start non-chat infrastructure first --------------------------------
-  await web.start(receive);
-
   const admin = new AdminServer(
     { users, queue, conversations, reports, log, matching, moderationEvents },
-    { port: ADMIN_PORT, host: HTTP_HOST, matchmaking: MATCHMAKING_CONFIG, authToken: ADMIN_TOKEN }
+    { matchmaking: MATCHMAKING_CONFIG, authToken: ADMIN_TOKEN }
   );
-  await admin.start();
+  admin.validateConfiguration();
 
   let miniApp: MiniAppServer | undefined;
   if (TELEGRAM_TOKEN && (!IS_DEVELOPMENT || TELEGRAM_ENABLED)) {
-    miniApp = new MiniAppServer(users, points, { port: MINI_APP_API_PORT, host: HTTP_HOST, botToken: TELEGRAM_TOKEN });
-    await miniApp.start();
+    miniApp = new MiniAppServer(users, points, { botToken: TELEGRAM_TOKEN });
+    miniApp.validateConfiguration();
   }
+
+  // ---- Start non-chat infrastructure first --------------------------------
+  await web.start(receive, (req, res) => {
+    const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+    if (pathname.startsWith("/api/miniapp") && miniApp) {
+      void miniApp.handleRequest(req, res);
+      return;
+    }
+    void admin.handleRequest(req, res);
+  });
 
   // ---- Telegram ------------------------------------------------------------
   let telegram: TelegramChannelDriver | undefined;
@@ -150,9 +155,7 @@ async function main(): Promise<void> {
     await Promise.allSettled([
       whatsapp?.stop(),
       telegram?.stop(),
-      miniApp?.stop(),
       web.stop(),
-      admin.stop()
     ]);
 
     process.exit(0);

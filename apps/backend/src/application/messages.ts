@@ -16,7 +16,7 @@ export const MSG = {
   miniAppButton: "Open Mini App",
   vipBuyLabel: (points: number) => `Buy VIP · ${points} points`,
   matchConnected: (gender: string, displayName?: string) =>
-    `${randomEmoji()} Chat Connected!${displayName ? `\nName: ${displayName}` : ""}\nGender: ${gender}\nSay hello to start the conversation...\n/next — ❤️ Next | /end — Stop chat\n> 💡 Tip: ${randomTip()}`,
+    `${randomEmoji()} Chat Connected!${displayName ? `\nName: ${displayName}` : ""}\nGender: ${gender}\nSay hello to start the conversation...\n/next — ❤️ Next | /end — Stop chat\n> \`💡 Tip: ${randomTip()}\``,
   matchFound: "You have been matched.",
   matchWaiting:
     "Looking for a compatible match… We'll notify you here as soon as someone is available. If the wait gets long we'll widen the search for you.",

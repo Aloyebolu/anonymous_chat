@@ -1,4 +1,4 @@
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { AI_CHANNEL, conversationId as brandConversationId, userId as brandUserId } from "../../domain/types.js";
 import type { MatchmakingConfig } from "../../application/matchmaking.js";
@@ -9,8 +9,6 @@ import type { ModerationEventRepository } from "../../ports/moderation-events.js
 import { applyCors, handlePreflight } from "../http/cors.js";
 
 export interface AdminServerOptions {
-  readonly port: number;
-  readonly host?: string;
   readonly matchmaking: MatchmakingConfig;
   readonly authToken?: string;
 }
@@ -26,34 +24,23 @@ interface AdminDeps {
 }
 
 export class AdminServer {
-  private server?: Server;
-  private boundPort?: number;
-
   constructor(private readonly deps: AdminDeps, private readonly options: AdminServerOptions) {}
 
-  get port(): number | undefined { return this.boundPort; }
-
-  async start(): Promise<void> {
+  validateConfiguration(): void {
     if (process.env.NODE_ENV === "production" && !this.options.authToken) {
       throw new Error("ADMIN_TOKEN is required to run the admin API in production.");
     }
     if (!this.options.authToken) console.warn("[admin] ADMIN_TOKEN is unset; admin API is open to local requests.");
-    this.server = createServer((req, res) => void this.handle(req, res));
-    await new Promise<void>((resolve) => this.server!.listen(this.options.port, this.options.host, resolve));
-    const address = this.server!.address();
-    this.boundPort = typeof address === "object" && address ? address.port : this.options.port;
-    console.log(`Admin API listening on http://localhost:${this.boundPort}/`);
   }
 
-  async stop(): Promise<void> {
-    if (this.server) await new Promise<void>((resolve) => this.server!.close(() => resolve()));
-    this.server = undefined;
+  async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    return this.handle(req, res);
   }
 
   private async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     if (req.method === "OPTIONS") return handlePreflight(res);
     applyCors(res);
-    const url = new URL(req.url ?? "/", `http://localhost:${this.boundPort}`);
+    const url = new URL(req.url ?? "/", "http://localhost");
 
     const bearer = (req.headers.authorization ?? "").replace(/^Bearer\s+/i, "");
     const moderatorId = bearer ? await this.moderatorForToken(bearer) : undefined;
@@ -123,16 +110,26 @@ export class AdminServer {
       }
 
       if (req.method === "PATCH" && url.pathname === "/api/moderator/settings") {
-        if (!moderatorId) { res.statusCode = 401; res.end("Moderator token required"); return; }
+        console.info("[admin] PATCH /api/moderator/settings", { authenticated: Boolean(moderatorId) });
+        if (!moderatorId) { console.warn("[admin] moderator settings rejected: missing moderator token"); res.statusCode = 401; res.end("Moderator token required"); return; }
         const body = await readJson(req);
         const available = typeof body?.available === "boolean" ? body.available : undefined;
-        const channels = Array.isArray(body?.channels) && body.channels.every((channel) => channel === "telegram" || channel === "whatsapp") ? [...new Set(body.channels as string[])] : undefined;
+        const channels = Array.isArray(body?.channels) && body.channels.every((channel) => channel === "telegram" || channel === "whatsapp" || channel === "web") ? [...new Set(body.channels as string[])] : undefined;
         const profile = await this.deps.users.profileFor(moderatorId);
         const connected = (await this.deps.users.allIdentities()).filter((identity) => identity.userId === moderatorId).map((identity) => identity.channel);
         if (!profile?.moderator || available === undefined || !channels || channels.some((channel) => !connected.includes(channel)) || (available && channels.length === 0)) {
+          console.warn("[admin] moderator settings rejected", {
+            moderator: Boolean(profile?.moderator),
+            availableProvided: available !== undefined,
+            channelsValid: Boolean(channels),
+            requestedChannels: channels,
+            connectedChannels: connected,
+            availableRequiresChannel: Boolean(available && channels?.length === 0)
+          });
           res.statusCode = 400; res.end("Choose at least one connected channel before going available"); return;
         }
         await this.deps.users.saveProfile({ ...profile, moderatorAvailable: available, moderatorChannels: channels });
+        console.info("[admin] moderator settings updated", { available, channels });
         return this.json(res, { ok: true, available, channels });
       }
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-const API = process.env.NEXT_PUBLIC_ADMIN_API ?? "http://localhost:3001";
+const API = process.env.NEXT_PUBLIC_ADMIN_API;
 type ModeratorState = { userId: string; available: boolean; channels: string[]; connectedChannels: string[]; activeConversationId: string | null };
 
 export default function ModeratorPage() {

@@ -9,27 +9,1801 @@
       "channel": "operator",
       "externalId": "muuna:1979e458-c77e-4b9f-a421-96f4612fb029",
       "userId": "f6a7568e-7dfc-49bc-a363-696de8e9e090"
+    },
+    "web:alice": {
+      "channel": "web",
+      "externalId": "alice",
+      "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+    },
+    "web:alice2": {
+      "channel": "web",
+      "externalId": "alice2",
+      "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+    },
+    "ai:assistant": {
+      "channel": "ai",
+      "externalId": "assistant",
+      "userId": "7fc9c414-fa3f-479c-b853-c3dd9f35b984"
     }
   },
   "profiles": {
     "d66faca3-b44e-4eb5-9e74-8dd406919d7e": {
       "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+      "gender": "male",
+      "country": "dfd",
+      "preferredGender": "female",
+      "shadowBanned": false,
+      "moderator": true,
+      "moderatorAvailable": true,
+      "moderatorChannels": [
+        "web"
+      ],
+      "moderatorAccessHash": "0225585b60a4ec08e4c143148313d245c090831a8c3eb38b84a8d5696b014c2d"
+    },
+    "f16bbf0e-922e-4a34-adca-98209b55ead8": {
+      "userId": "f16bbf0e-922e-4a34-adca-98209b55ead8",
       "gender": "female",
       "country": "Nigeria",
-      "preferredGender": "male",
-      "moderator": true,
-      "moderatorAvailable": false,
-      "moderatorChannels": [],
-      "moderatorAccessHash": "86be8aa851e651c4529a516a03c538d164fc94e33c38cd1c47d9e176c92b9491",
-      "moderatorLinkCodeHash": "09d567ad4e7279048052df0b6af1120ab2af95f62b391864e7a1e4e5f2c3ced7",
-      "moderatorLinkCodeExpiresAt": "2026-10-17T12:57:27.946Z"
+      "preferredGender": "male"
+    },
+    "39b5e20a-9904-43d1-b666-6e0acce9ce37": {
+      "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+      "gender": "male",
+      "country": "Nigeria",
+      "preferredGender": "female"
     }
   },
-  "eligibility": {},
+  "eligibility": {
+    "f16bbf0e-922e-4a34-adca-98209b55ead8": {
+      "userId": "f16bbf0e-922e-4a34-adca-98209b55ead8",
+      "status": "eligible",
+      "method": "self-declared-18-plus",
+      "verifiedAt": "2026-10-17T12:51:09.705Z"
+    },
+    "39b5e20a-9904-43d1-b666-6e0acce9ce37": {
+      "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+      "status": "eligible",
+      "method": "self-declared-18-plus",
+      "verifiedAt": "2026-10-17T12:54:59.084Z"
+    },
+    "d66faca3-b44e-4eb5-9e74-8dd406919d7e": {
+      "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+      "status": "eligible",
+      "method": "self-declared-18-plus",
+      "verifiedAt": "2026-10-17T13:15:28.999Z"
+    }
+  },
   "drafts": {},
   "queue": [],
-  "conversations": {},
+  "conversations": {
+    "139abf9f-750b-4e9b-81ef-bfe37bc00286": {
+      "id": "139abf9f-750b-4e9b-81ef-bfe37bc00286",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "f16bbf0e-922e-4a34-adca-98209b55ead8",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "f16bbf0e-922e-4a34-adca-98209b55ead8"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T12:55:11.537Z",
+      "kind": "human"
+    },
+    "10349f1f-ae47-4689-83b9-7216aa0e504a": {
+      "id": "10349f1f-ae47-4689-83b9-7216aa0e504a",
+      "participants": [
+        {
+          "userId": "f16bbf0e-922e-4a34-adca-98209b55ead8",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "f16bbf0e-922e-4a34-adca-98209b55ead8"
+          }
+        },
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T12:56:03.601Z",
+      "kind": "human"
+    },
+    "b2cc070f-c0a8-4034-a272-93e6bffec2b0": {
+      "id": "b2cc070f-c0a8-4034-a272-93e6bffec2b0",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "7fc9c414-fa3f-479c-b853-c3dd9f35b984",
+          "identity": {
+            "channel": "ai",
+            "externalId": "assistant",
+            "userId": "7fc9c414-fa3f-479c-b853-c3dd9f35b984"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:15:32.732Z",
+      "kind": "ai"
+    },
+    "445c3d3d-542e-44a1-b984-0b9fdb610598": {
+      "id": "445c3d3d-542e-44a1-b984-0b9fdb610598",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:51:15.846Z",
+      "kind": "operator"
+    },
+    "a100cfd1-05a3-40a1-9d83-6ffaaca2cc7a": {
+      "id": "a100cfd1-05a3-40a1-9d83-6ffaaca2cc7a",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:05.039Z",
+      "kind": "operator"
+    },
+    "0138c442-c6af-44c6-90d4-1da226177b8b": {
+      "id": "0138c442-c6af-44c6-90d4-1da226177b8b",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:10.083Z",
+      "kind": "operator"
+    },
+    "86f3f726-4eb6-409f-bcc2-8ffee3acde7d": {
+      "id": "86f3f726-4eb6-409f-bcc2-8ffee3acde7d",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:11.638Z",
+      "kind": "operator"
+    },
+    "1366cc66-ea1d-4818-b496-726098ef150f": {
+      "id": "1366cc66-ea1d-4818-b496-726098ef150f",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:12.725Z",
+      "kind": "operator"
+    },
+    "172e837c-169a-40cf-9acc-3c9a887284fb": {
+      "id": "172e837c-169a-40cf-9acc-3c9a887284fb",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:13.473Z",
+      "kind": "operator"
+    },
+    "2293ccd9-9745-4f6a-9a50-319ebc669c59": {
+      "id": "2293ccd9-9745-4f6a-9a50-319ebc669c59",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:14.355Z",
+      "kind": "operator"
+    },
+    "2f60213c-f365-4f5c-a533-2af6a20a358f": {
+      "id": "2f60213c-f365-4f5c-a533-2af6a20a358f",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:15.010Z",
+      "kind": "operator"
+    },
+    "45b868d4-d3e0-4d8a-97ce-4b03195a5ec4": {
+      "id": "45b868d4-d3e0-4d8a-97ce-4b03195a5ec4",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:15.645Z",
+      "kind": "operator"
+    },
+    "820fda22-2687-43e9-b12e-d67884be1499": {
+      "id": "820fda22-2687-43e9-b12e-d67884be1499",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:16.143Z",
+      "kind": "operator"
+    },
+    "cbdb9331-0975-4493-a3ec-93a5e9e161e0": {
+      "id": "cbdb9331-0975-4493-a3ec-93a5e9e161e0",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:16.584Z",
+      "kind": "operator"
+    },
+    "2a41d418-d2f4-4713-93e5-260a62b9e5e1": {
+      "id": "2a41d418-d2f4-4713-93e5-260a62b9e5e1",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:16.971Z",
+      "kind": "operator"
+    },
+    "cade66f3-fe1e-487f-9e14-843723244f8b": {
+      "id": "cade66f3-fe1e-487f-9e14-843723244f8b",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:17.354Z",
+      "kind": "operator"
+    },
+    "7f909bd5-7048-4e0c-aa26-327448fda41f": {
+      "id": "7f909bd5-7048-4e0c-aa26-327448fda41f",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:17.744Z",
+      "kind": "operator"
+    },
+    "c5570c85-e9f1-4841-88db-2b910d7f1570": {
+      "id": "c5570c85-e9f1-4841-88db-2b910d7f1570",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:18.512Z",
+      "kind": "operator"
+    },
+    "8d798818-6226-46cf-87c3-1efe007c66f6": {
+      "id": "8d798818-6226-46cf-87c3-1efe007c66f6",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:18.932Z",
+      "kind": "operator"
+    },
+    "0b66e02d-90ce-4300-a784-1781910486b4": {
+      "id": "0b66e02d-90ce-4300-a784-1781910486b4",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:19.424Z",
+      "kind": "operator"
+    },
+    "3d8d3fa1-4b22-4362-ae43-0acd9b2d9f36": {
+      "id": "3d8d3fa1-4b22-4362-ae43-0acd9b2d9f36",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:19.843Z",
+      "kind": "operator"
+    },
+    "72c95c76-c3e5-4324-b8c1-c027f03b6f0a": {
+      "id": "72c95c76-c3e5-4324-b8c1-c027f03b6f0a",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:20.327Z",
+      "kind": "operator"
+    },
+    "07e7b536-c58e-4804-a32d-285e5b036079": {
+      "id": "07e7b536-c58e-4804-a32d-285e5b036079",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:20.791Z",
+      "kind": "operator"
+    },
+    "f4e93030-e4e6-48ba-91d4-2a53a780bc61": {
+      "id": "f4e93030-e4e6-48ba-91d4-2a53a780bc61",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:22.985Z",
+      "kind": "operator"
+    },
+    "3064911f-c129-419d-985f-6a9d29f78333": {
+      "id": "3064911f-c129-419d-985f-6a9d29f78333",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:23.396Z",
+      "kind": "operator"
+    },
+    "2adfb0ed-1fb8-46c5-81cc-79efa11a96e3": {
+      "id": "2adfb0ed-1fb8-46c5-81cc-79efa11a96e3",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:23.588Z",
+      "kind": "operator"
+    },
+    "d1a83485-9a03-4ab3-aeda-43d9836d7d19": {
+      "id": "d1a83485-9a03-4ab3-aeda-43d9836d7d19",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:23.757Z",
+      "kind": "operator"
+    },
+    "372112ec-a13f-4e75-a075-bafe0d02e7eb": {
+      "id": "372112ec-a13f-4e75-a075-bafe0d02e7eb",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:23.913Z",
+      "kind": "operator"
+    },
+    "04757d31-e231-4f04-9a35-3dc7093418f7": {
+      "id": "04757d31-e231-4f04-9a35-3dc7093418f7",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:24.170Z",
+      "kind": "operator"
+    },
+    "093dae95-89cf-4d21-a872-d27be2f01220": {
+      "id": "093dae95-89cf-4d21-a872-d27be2f01220",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:24.713Z",
+      "kind": "operator"
+    },
+    "795fe4b9-3a03-4834-8f71-85b604969395": {
+      "id": "795fe4b9-3a03-4834-8f71-85b604969395",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:24.819Z",
+      "kind": "operator"
+    },
+    "3cfd09c7-5ef0-488f-8f42-8d247de0f56c": {
+      "id": "3cfd09c7-5ef0-488f-8f42-8d247de0f56c",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:24.946Z",
+      "kind": "operator"
+    },
+    "873a7db6-466f-456b-aa88-8718a81ed341": {
+      "id": "873a7db6-466f-456b-aa88-8718a81ed341",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:25.103Z",
+      "kind": "operator"
+    },
+    "99d529e8-15f8-458d-be8d-ba3aba1b2a62": {
+      "id": "99d529e8-15f8-458d-be8d-ba3aba1b2a62",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:25.217Z",
+      "kind": "operator"
+    },
+    "bd0b10e9-54a0-4965-b7f1-d82a345aedce": {
+      "id": "bd0b10e9-54a0-4965-b7f1-d82a345aedce",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:25.411Z",
+      "kind": "operator"
+    },
+    "6e63669c-242c-4976-a7d7-8a94946cdba4": {
+      "id": "6e63669c-242c-4976-a7d7-8a94946cdba4",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:25.461Z",
+      "kind": "operator"
+    },
+    "f9254789-4eef-4989-8420-0589049c75e3": {
+      "id": "f9254789-4eef-4989-8420-0589049c75e3",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:25.552Z",
+      "kind": "operator"
+    },
+    "3082ab90-659f-4bdf-a7cf-647b2d8ef429": {
+      "id": "3082ab90-659f-4bdf-a7cf-647b2d8ef429",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:25.673Z",
+      "kind": "operator"
+    },
+    "5fa7b24a-0bb2-47bf-849a-b4281af99c90": {
+      "id": "5fa7b24a-0bb2-47bf-849a-b4281af99c90",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:25.808Z",
+      "kind": "operator"
+    },
+    "946ffb85-26bb-4668-9ea8-29532f40a55d": {
+      "id": "946ffb85-26bb-4668-9ea8-29532f40a55d",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:25.957Z",
+      "kind": "operator"
+    },
+    "ac1e5061-f856-4532-bfa9-077166160537": {
+      "id": "ac1e5061-f856-4532-bfa9-077166160537",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:26.080Z",
+      "kind": "operator"
+    },
+    "d2c176e7-a4b4-474c-b742-f6eb4b71ecdb": {
+      "id": "d2c176e7-a4b4-474c-b742-f6eb4b71ecdb",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:26.221Z",
+      "kind": "operator"
+    },
+    "34b80921-3645-4989-9046-07617ab1eb17": {
+      "id": "34b80921-3645-4989-9046-07617ab1eb17",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:26.418Z",
+      "kind": "operator"
+    },
+    "6b9cbdaf-2a97-496c-9379-c89976e8e3fe": {
+      "id": "6b9cbdaf-2a97-496c-9379-c89976e8e3fe",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:26.484Z",
+      "kind": "operator"
+    },
+    "0a2d669f-9309-46ac-8582-32120e086ac1": {
+      "id": "0a2d669f-9309-46ac-8582-32120e086ac1",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:26.627Z",
+      "kind": "operator"
+    },
+    "06ed1ce9-80af-4378-a8c2-3618d3326df2": {
+      "id": "06ed1ce9-80af-4378-a8c2-3618d3326df2",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:27.026Z",
+      "kind": "operator"
+    },
+    "058fc00f-904c-48b2-b82c-2c0a600c47cb": {
+      "id": "058fc00f-904c-48b2-b82c-2c0a600c47cb",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:27.168Z",
+      "kind": "operator"
+    },
+    "05ba06a7-ea2e-44c0-bcb1-eb221f68a97d": {
+      "id": "05ba06a7-ea2e-44c0-bcb1-eb221f68a97d",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:27.382Z",
+      "kind": "operator"
+    },
+    "db3ae165-b3cd-4c64-995c-aa349cb12c4f": {
+      "id": "db3ae165-b3cd-4c64-995c-aa349cb12c4f",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:27.529Z",
+      "kind": "operator"
+    },
+    "1b77ff59-d5c0-49c0-8c53-a7c2c9b29a7d": {
+      "id": "1b77ff59-d5c0-49c0-8c53-a7c2c9b29a7d",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:27.673Z",
+      "kind": "operator"
+    },
+    "9eb24e22-0556-4d33-8e6b-de644eeeca5c": {
+      "id": "9eb24e22-0556-4d33-8e6b-de644eeeca5c",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:27.796Z",
+      "kind": "operator"
+    },
+    "5b6b94b5-d2cd-4651-9cbe-2dd5a4f9fa43": {
+      "id": "5b6b94b5-d2cd-4651-9cbe-2dd5a4f9fa43",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:27.935Z",
+      "kind": "operator"
+    },
+    "3353e84a-310f-4e9e-a586-7bdf336db5fc": {
+      "id": "3353e84a-310f-4e9e-a586-7bdf336db5fc",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:28.216Z",
+      "kind": "operator"
+    },
+    "3bf0b424-1d41-453f-86dd-1d0d7ae142a4": {
+      "id": "3bf0b424-1d41-453f-86dd-1d0d7ae142a4",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:28.378Z",
+      "kind": "operator"
+    },
+    "9ae46d5b-bd24-4df6-afda-fdbe63b8f811": {
+      "id": "9ae46d5b-bd24-4df6-afda-fdbe63b8f811",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:28.557Z",
+      "kind": "operator"
+    },
+    "34583b5a-e5f0-4f92-bbbc-2615443de6b8": {
+      "id": "34583b5a-e5f0-4f92-bbbc-2615443de6b8",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:28.663Z",
+      "kind": "operator"
+    },
+    "2cdd1815-d807-4fff-bbd7-e6a34a45dccc": {
+      "id": "2cdd1815-d807-4fff-bbd7-e6a34a45dccc",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:28.805Z",
+      "kind": "operator"
+    },
+    "1d515d88-8269-41f0-8139-eb00180a3d7c": {
+      "id": "1d515d88-8269-41f0-8139-eb00180a3d7c",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:28.955Z",
+      "kind": "operator"
+    },
+    "9c96f37f-e51d-4e54-b45d-55bfb9618b72": {
+      "id": "9c96f37f-e51d-4e54-b45d-55bfb9618b72",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:29.097Z",
+      "kind": "operator"
+    },
+    "7e981dc6-7b1e-4ec0-90be-352f642a0a23": {
+      "id": "7e981dc6-7b1e-4ec0-90be-352f642a0a23",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:29.232Z",
+      "kind": "operator"
+    },
+    "8d2b0a8b-48da-47a1-9da4-e1d9d269dd2f": {
+      "id": "8d2b0a8b-48da-47a1-9da4-e1d9d269dd2f",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:29.375Z",
+      "kind": "operator"
+    },
+    "480d4604-ade2-44fb-be4c-d4e732fe5f4e": {
+      "id": "480d4604-ade2-44fb-be4c-d4e732fe5f4e",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:29.573Z",
+      "kind": "operator"
+    },
+    "fc246a32-b918-4305-aa57-629c4f7ee3a7": {
+      "id": "fc246a32-b918-4305-aa57-629c4f7ee3a7",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:29.689Z",
+      "kind": "operator"
+    },
+    "b2ca6fd1-4ab5-4301-819f-8075afb74cfc": {
+      "id": "b2ca6fd1-4ab5-4301-819f-8075afb74cfc",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:29.823Z",
+      "kind": "operator"
+    },
+    "00d2b103-c09e-4e2e-b1c7-8d1aa93bc7ec": {
+      "id": "00d2b103-c09e-4e2e-b1c7-8d1aa93bc7ec",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:29.973Z",
+      "kind": "operator"
+    },
+    "550de446-74ef-4b5d-942c-abbe61aa45e2": {
+      "id": "550de446-74ef-4b5d-942c-abbe61aa45e2",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:30.137Z",
+      "kind": "operator"
+    },
+    "7d72958e-4625-419b-af1e-c6333a9a51ca": {
+      "id": "7d72958e-4625-419b-af1e-c6333a9a51ca",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:30.287Z",
+      "kind": "operator"
+    },
+    "aecb122b-f3ab-4fa1-ac35-8c64821b7bf7": {
+      "id": "aecb122b-f3ab-4fa1-ac35-8c64821b7bf7",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:30.428Z",
+      "kind": "operator"
+    },
+    "13839620-f76a-434e-b857-60db9b734e8f": {
+      "id": "13839620-f76a-434e-b857-60db9b734e8f",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:30.630Z",
+      "kind": "operator"
+    },
+    "356e843a-333f-40f7-939d-7c70227d7208": {
+      "id": "356e843a-333f-40f7-939d-7c70227d7208",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "ended",
+      "createdAt": "2026-10-17T13:52:30.734Z",
+      "kind": "operator"
+    },
+    "07beb20e-8824-4a86-8927-891a1770215f": {
+      "id": "07beb20e-8824-4a86-8927-891a1770215f",
+      "participants": [
+        {
+          "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice2",
+            "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37"
+          }
+        },
+        {
+          "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+          "identity": {
+            "channel": "web",
+            "externalId": "alice",
+            "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e"
+          }
+        }
+      ],
+      "status": "active",
+      "createdAt": "2026-10-17T13:52:30.892Z",
+      "kind": "operator"
+    }
+  },
   "reports": {},
-  "pointEvents": [],
+  "pointEvents": [
+    {
+      "id": "3904bd93-9153-4cdf-88f4-7a49cde53649",
+      "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+      "eventId": "web:alice:web-1792245100924-uhweba",
+      "createdAt": "2026-10-17T13:51:40.924Z",
+      "points": 1
+    },
+    {
+      "id": "42078cc1-ccb0-46b7-980a-8cf59e8c0f06",
+      "userId": "39b5e20a-9904-43d1-b666-6e0acce9ce37",
+      "eventId": "web:alice2:web-1792245109957-s1wkn6",
+      "createdAt": "2026-10-17T13:51:49.957Z",
+      "points": 1
+    },
+    {
+      "id": "b65b7c5e-48cb-40e0-8964-2b778b013b01",
+      "userId": "d66faca3-b44e-4eb5-9e74-8dd406919d7e",
+      "eventId": "web:alice:web-1792258843621-85kyag",
+      "createdAt": "2026-10-17T17:40:43.624Z",
+      "points": 1
+    }
+  ],
   "moderationEvents": {}
 }
