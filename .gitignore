@@ -3,7 +3,7 @@ node_modules/
 
 
 # Environment files
-/apps/backend/src/.env
+apps/backend/src/.env
 *.env
 apps/backend/.env
 apps/backend/.env.*
