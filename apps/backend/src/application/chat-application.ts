@@ -136,6 +136,7 @@ export class ChatApplication {
 
     const participant = conversation.participants.find((entry) => entry.userId !== staffId);
     if (!participant) return false;
+    this.log.watch(conversation.id);
     this.log.append({
       id: crypto.randomUUID(),
       conversationId: conversation.id,
@@ -149,10 +150,25 @@ export class ChatApplication {
     return true;
   }
 
+  async endStaffSession(staffId: UserId, conversationIdValue: string): Promise<boolean> {
+    const conversation = await this.conversations.byId(brandConversationId(conversationIdValue));
+    if (!conversation || conversation.status !== "active" || conversation.kind !== "operator" ||
+      !conversation.participants.some((participant) => participant.userId === staffId)) return false;
+    const profile = await this.users.profileFor(staffId);
+    if (!profile?.moderator && !profile?.operator) return false;
+    const participant = conversation.participants.find((entry) => entry.userId !== staffId);
+    if (!participant) return false;
+
+    await this.conversations.save({ ...conversation, status: "ended" });
+    await this.send(participant.identity, { kind: "text", text: MSG.otherEnded });
+    return true;
+  }
+
   // ─── Matchmaking notifications ──────────────────────────────────────────
 
   private async notifyMatches(conversations: readonly Conversation[]): Promise<void> {
     for (const conversation of conversations) {
+      if (conversation.kind === "operator") this.log.watch(conversation.id);
       const aiParticipant = conversation.participants.find(
         (p) => p.identity.channel === AI_CHANNEL
       );

@@ -14,6 +14,12 @@ type WorkspaceState = {
 };
 
 const API = process.env.NEXT_PUBLIC_ADMIN_API ?? process.env.NEXT_PUBLIC_WEB_API;
+const QUICK_MESSAGES = [
+  "Hi, I’m here to help. What would you like support with?",
+  "Thanks for sharing that with me. Take your time.",
+  "Is there anything else I can help you with?",
+  "I’m checking this for you now."
+];
 
 export const StaffWorkspace = ({ role }: { readonly role: StaffRole }) => {
   const tokenKey = role === "moderator" ? "moderatorToken" : "operatorToken";
@@ -84,12 +90,16 @@ export const StaffWorkspace = ({ role }: { readonly role: StaffRole }) => {
       try {
         const message = JSON.parse(event.data) as {
           type?: string;
+          userId?: string;
           state?: WorkspaceState;
         };
         if (message.state && (
           (role === "moderator" && message.type === "moderator-update") ||
           (role === "operator" && message.type === "operator-update")
-        )) applyState(message.state);
+        )) applyState({
+          ...message.state,
+          userId: message.userId ?? message.state.userId
+        });
       } catch (reason) {
         console.error("Could not parse staff workspace update.", reason);
       }
@@ -115,7 +125,6 @@ export const StaffWorkspace = ({ role }: { readonly role: StaffRole }) => {
   };
 
   const sendMessage = async (conversationId: string, event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
     const text = drafts[conversationId]?.trim();
     if (!text) return;
     setBusy(true);
@@ -128,6 +137,22 @@ export const StaffWorkspace = ({ role }: { readonly role: StaffRole }) => {
       setError("");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Message could not be sent");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const endSession = async (conversationId: string) => {
+    if (!window.confirm("End this support session? The participant will be notified.")) return;
+    setBusy(true);
+    try {
+      await request(role === "moderator" ? API_PATHS.moderator.sessionCommand : API_PATHS.operator.sessionCommand, {
+        method: "POST",
+        body: JSON.stringify({ conversationId, command: "end" })
+      });
+      setError("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not end the session");
     } finally {
       setBusy(false);
     }
@@ -194,7 +219,10 @@ export const StaffWorkspace = ({ role }: { readonly role: StaffRole }) => {
                       <h2>{session.participant.displayName || "Anonymous participant"}</h2>
                       <p>{session.participant.age ?? "Age not set"} · {session.participant.gender} · {session.participant.country}</p>
                     </div>
-                    <span className="staff-session-indicator">Live</span>
+                    <div className="staff-session-actions">
+                      <span className="staff-session-indicator">Live</span>
+                      <button type="button" className="staff-end-session" disabled={busy} onClick={() => void endSession(session.conversationId)}>End chat</button>
+                    </div>
                   </header>
                   <div className="staff-messages" aria-live="polite">
                     {session.messages.length === 0 ? <p className="staff-muted">Say hello to start the conversation.</p> :
@@ -205,14 +233,29 @@ export const StaffWorkspace = ({ role }: { readonly role: StaffRole }) => {
                         </div>
                       ))}
                   </div>
-                  <form className="staff-compose" onSubmit={(event) => void sendMessage(session.conversationId, event)}>
+                  <div className="staff-quick-messages" aria-label="Quick messages">
+                    {QUICK_MESSAGES.map((message) => (
+                      <button
+                        type="button"
+                        key={message}
+                        disabled={busy}
+                        onClick={() => setDrafts((current) => ({ ...current, [session.conversationId]: message }))}
+                      >
+                        {message.length > 37 ? `${message.slice(0, 34)}…` : message}
+                      </button>
+                    ))}
+                  </div>
+                  <form className="staff-compose" onSubmit={(event) => {
+                    event.preventDefault();
+                    void sendMessage(session.conversationId, event);
+                  }}>
                     <input
                       value={drafts[session.conversationId] ?? ""}
                       onChange={(event) => setDrafts((current) => ({ ...current, [session.conversationId]: event.target.value }))}
                       placeholder="Write a reply…"
                       maxLength={4000}
                     />
-                    <button disabled={busy || !drafts[session.conversationId]?.trim()}>Send</button>
+                    <button type="submit" disabled={busy || !drafts[session.conversationId]?.trim()}>Send</button>
                   </form>
                 </article>
               ))}
@@ -253,6 +296,9 @@ const CSS = `
 .staff-sessions{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:16px}
 .staff-session{display:flex;min-height:450px;flex-direction:column;gap:14px}
 .staff-session-head{display:flex;justify-content:space-between;gap:12px}
+.staff-session-actions{display:flex;align-items:flex-start;gap:8px;flex-direction:column}
+.staff-end-session{border:1px solid #f0c4c8;border-radius:8px;padding:6px 9px;background:#fff7f7;color:#a23345;font:inherit;font-size:11px;font-weight:750;cursor:pointer}
+.staff-end-session:disabled{opacity:.5;cursor:not-allowed}
 .staff-session-head .staff-eyebrow{margin-top:0}
 .staff-session-head h2{margin:5px 0;font-size:18px}
 .staff-session-head p:last-child{margin:0;color:var(--muted);font-size:12px;text-transform:capitalize}
@@ -261,6 +307,9 @@ const CSS = `
 .staff-message p{margin:0;white-space:pre-wrap;font-size:13px;line-height:1.45}
 .staff-message time{display:block;margin-top:5px;color:#8b93a4;font-size:9px;text-align:right}
 .staff-message-self{align-self:flex-end;border-radius:13px 13px 4px 13px;background:#e8e3ff}
+.staff-quick-messages{display:flex;gap:7px;overflow-x:auto;padding:1px 0 3px}
+.staff-quick-messages button{flex:0 0 auto;max-width:230px;overflow:hidden;border:1px solid #e3e0f5;border-radius:99px;padding:7px 10px;background:#faf9ff;color:#5946c4;font:inherit;font-size:11px;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.staff-quick-messages button:disabled{opacity:.5;cursor:not-allowed}
 .staff-compose{display:flex;gap:8px}
 .staff-compose input{flex:1}
 .staff-error{border-radius:10px;padding:12px;background:#fff0f1;color:#a23345}

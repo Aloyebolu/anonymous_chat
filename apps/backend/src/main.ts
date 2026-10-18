@@ -111,7 +111,8 @@ async function main(): Promise<void> {
       log,
       matching,
       moderationEvents,
-      sendStaffMessage: (staffId, conversationId, text) => app.sendStaffMessage(staffId, conversationId, text)
+      sendStaffMessage: (staffId, conversationId, text) => app.sendStaffMessage(staffId, conversationId, text),
+      endStaffSession: (staffId, conversationId) => app.endStaffSession(staffId, conversationId)
     },
     { matchmaking: MATCHMAKING_CONFIG, authToken: ADMIN_TOKEN }
   );

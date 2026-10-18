@@ -35,6 +35,7 @@ interface AdminDeps {
   readonly moderationEvents?: ModerationEventRepository;
   readonly sendModeratorNotice?: (identity: CommunicationIdentity, text: string) => Promise<void>;
   readonly sendStaffMessage?: (staffId: UserId, conversationId: string, text: string) => Promise<boolean>;
+  readonly endStaffSession?: (staffId: UserId, conversationId: string) => Promise<boolean>;
 }
 
 type LiveSocket = {
@@ -125,9 +126,11 @@ export class AdminServer {
         API_PATHS.moderator.participantProfile,
         API_PATHS.moderator.notice,
         API_PATHS.moderator.message,
+        API_PATHS.moderator.sessionCommand,
         API_PATHS.operator.me,
         API_PATHS.operator.settings,
-        API_PATHS.operator.message
+        API_PATHS.operator.message,
+        API_PATHS.operator.sessionCommand
       ]);
       const allowedForStaff = (Boolean(moderatorId) || Boolean(operatorId)) && moderatorPaths.has(url.pathname) &&
         (moderatorId ? !url.pathname.startsWith(`${API_PREFIX}/operator/`) : url.pathname.startsWith(`${API_PREFIX}/operator/`));
@@ -212,6 +215,19 @@ export class AdminServer {
         return this.json(res, { ok: true });
       }
 
+      if (req.method === "POST" && url.pathname === API_PATHS.moderator.sessionCommand) {
+        if (!moderatorId) { res.statusCode = 401; res.end("Moderator token required"); return; }
+        const body = await readJson(req);
+        const conversationId = typeof body?.conversationId === "string" ? body.conversationId : undefined;
+        if (!conversationId || body?.command !== "end" || !this.deps.endStaffSession) {
+          res.statusCode = 400; res.end("conversationId and a supported command are required"); return;
+        }
+        const ended = await this.deps.endStaffSession(moderatorId, conversationId);
+        if (!ended) { res.statusCode = 403; res.end("Command could not be applied to that active support session"); return; }
+        await this.publishLiveUpdates();
+        return this.json(res, { ok: true });
+      }
+
       if (req.method === "GET" && url.pathname === API_PATHS.operator.me) {
         if (!operatorId) { res.statusCode = 401; res.end("Operator token required"); return; }
         return this.json(res, await this.buildOperatorState(operatorId));
@@ -242,6 +258,19 @@ export class AdminServer {
         }
         const sent = await this.deps.sendStaffMessage(operatorId, conversationId, text);
         if (!sent) { res.statusCode = 403; res.end("Message could not be sent to that active operator session"); return; }
+        await this.publishLiveUpdates();
+        return this.json(res, { ok: true });
+      }
+
+      if (req.method === "POST" && url.pathname === API_PATHS.operator.sessionCommand) {
+        if (!operatorId) { res.statusCode = 401; res.end("Operator token required"); return; }
+        const body = await readJson(req);
+        const conversationId = typeof body?.conversationId === "string" ? body.conversationId : undefined;
+        if (!conversationId || body?.command !== "end" || !this.deps.endStaffSession) {
+          res.statusCode = 400; res.end("conversationId and a supported command are required"); return;
+        }
+        const ended = await this.deps.endStaffSession(operatorId, conversationId);
+        if (!ended) { res.statusCode = 403; res.end("Command could not be applied to that active support session"); return; }
         await this.publishLiveUpdates();
         return this.json(res, { ok: true });
       }
@@ -630,6 +659,7 @@ export class AdminServer {
     for (const conversation of conversations) {
       if (conversation.status !== "active" || conversation.kind !== "operator" ||
         !conversation.participants.some((participant) => participant.userId === staffId)) continue;
+      this.deps.log.watch(conversation.id);
       const participant = conversation.participants.find((entry) => entry.userId !== staffId);
       if (!participant) continue;
       const [profile, identity] = await Promise.all([

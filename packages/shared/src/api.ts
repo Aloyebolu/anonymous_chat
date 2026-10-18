@@ -23,12 +23,14 @@ export const API_PATHS = {
     shadowBan: `${API_PREFIX}/moderator/shadow-ban`,
     participantProfile: `${API_PREFIX}/moderator/participant-profile`,
     notice: `${API_PREFIX}/moderator/notice`,
-    message: `${API_PREFIX}/moderator/message`
+    message: `${API_PREFIX}/moderator/message`,
+    sessionCommand: `${API_PREFIX}/moderator/session-command`
   },
   operator: {
     me: `${API_PREFIX}/operator/me`,
     settings: `${API_PREFIX}/operator/settings`,
-    message: `${API_PREFIX}/operator/message`
+    message: `${API_PREFIX}/operator/message`,
+    sessionCommand: `${API_PREFIX}/operator/session-command`
   },
   miniApp: {
     prefix: `${API_PREFIX}/miniapp`,
