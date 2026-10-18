@@ -8,6 +8,7 @@ import type {
   MessageLogEntryDto,
   ModerationEventSummary,
   ModeratorLiveState,
+  OperatorLiveState,
   ReportedUserSummary
 } from "@anonymous-chat/shared/contracts";
 import { API_PATHS, API_PREFIX } from "@anonymous-chat/shared/api";
@@ -33,11 +34,15 @@ interface AdminDeps {
   readonly matching: MatchmakingService;
   readonly moderationEvents?: ModerationEventRepository;
   readonly sendModeratorNotice?: (identity: CommunicationIdentity, text: string) => Promise<void>;
+  readonly sendStaffMessage?: (staffId: UserId, conversationId: string, text: string) => Promise<boolean>;
 }
 
 type LiveSocket = {
   readonly socket: WebSocket;
-  readonly role: { readonly type: "admin" } | { readonly type: "moderator"; readonly userId: UserId };
+  readonly role:
+    | { readonly type: "admin" }
+    | { readonly type: "moderator"; readonly userId: UserId }
+    | { readonly type: "operator"; readonly userId: UserId };
 };
 
 export class AdminServer {
@@ -74,6 +79,12 @@ export class AdminServer {
       const state = await this.buildModeratorState(client.role.userId);
       this.sendSocket(client.socket, { type: "moderator-update", userId: client.role.userId, state });
     }));
+    const operators = [...this.liveSockets].filter((client) => client.role.type === "operator");
+    await Promise.all(operators.map(async (client) => {
+      if (client.role.type !== "operator") return;
+      const state = await this.buildOperatorState(client.role.userId);
+      this.sendSocket(client.socket, { type: "operator-update", state });
+    }));
   }
 
   async close(): Promise<void> {
@@ -103,7 +114,8 @@ export class AdminServer {
 
     const bearer = (req.headers.authorization ?? "").replace(/^Bearer\s+/i, "");
     const moderatorId = bearer ? await this.moderatorForToken(bearer) : undefined;
-    const isAdmin = bearer === this.options.authToken || (!this.options.authToken && !moderatorId);
+    const operatorId = bearer ? await this.operatorForToken(bearer) : undefined;
+    const isAdmin = bearer === this.options.authToken || (!this.options.authToken && !moderatorId && !operatorId);
     if (url.pathname.startsWith(`${API_PREFIX}/`) && !isAdmin) {
       const moderatorPaths = new Set<string>([
         API_PATHS.moderator.me,
@@ -111,10 +123,15 @@ export class AdminServer {
         API_PATHS.moderator.linkCode,
         API_PATHS.moderator.shadowBan,
         API_PATHS.moderator.participantProfile,
-        API_PATHS.moderator.notice
+        API_PATHS.moderator.notice,
+        API_PATHS.moderator.message,
+        API_PATHS.operator.me,
+        API_PATHS.operator.settings,
+        API_PATHS.operator.message
       ]);
-      const allowedForModerator = Boolean(moderatorId) && moderatorPaths.has(url.pathname);
-      if (!allowedForModerator) {
+      const allowedForStaff = (Boolean(moderatorId) || Boolean(operatorId)) && moderatorPaths.has(url.pathname) &&
+        (moderatorId ? !url.pathname.startsWith(`${API_PREFIX}/operator/`) : url.pathname.startsWith(`${API_PREFIX}/operator/`));
+      if (!allowedForStaff) {
         res.statusCode = 401;
         res.setHeader("www-authenticate", "Bearer");
         res.end("Unauthorized");
@@ -179,6 +196,54 @@ export class AdminServer {
       if (req.method === "GET" && url.pathname === API_PATHS.moderator.me) {
         if (!moderatorId) { res.statusCode = 401; res.end("Moderator token required"); return; }
         return this.json(res, { userId: moderatorId, ...await this.buildModeratorState(moderatorId) });
+      }
+
+      if (req.method === "POST" && url.pathname === API_PATHS.moderator.message) {
+        if (!moderatorId) { res.statusCode = 401; res.end("Moderator token required"); return; }
+        const body = await readJson(req);
+        const conversationId = typeof body?.conversationId === "string" ? body.conversationId : undefined;
+        const text = typeof body?.text === "string" ? body.text : undefined;
+        if (!conversationId || !text || !this.deps.sendStaffMessage) {
+          res.statusCode = 400; res.end("conversationId and text required"); return;
+        }
+        const sent = await this.deps.sendStaffMessage(moderatorId, conversationId, text);
+        if (!sent) { res.statusCode = 403; res.end("Message could not be sent to that active support session"); return; }
+        await this.publishLiveUpdates();
+        return this.json(res, { ok: true });
+      }
+
+      if (req.method === "GET" && url.pathname === API_PATHS.operator.me) {
+        if (!operatorId) { res.statusCode = 401; res.end("Operator token required"); return; }
+        return this.json(res, await this.buildOperatorState(operatorId));
+      }
+
+      if (req.method === "PATCH" && url.pathname === API_PATHS.operator.settings) {
+        if (!operatorId) { res.statusCode = 401; res.end("Operator token required"); return; }
+        const body = await readJson(req);
+        const available = typeof body?.available === "boolean" ? body.available : undefined;
+        const sessionLimit = typeof body?.sessionLimit === "number" ? body.sessionLimit : undefined;
+        const profile = await this.deps.users.profileFor(operatorId);
+        if (!profile?.operator || available === undefined || sessionLimit === undefined ||
+          !Number.isInteger(sessionLimit) || sessionLimit < 1 || sessionLimit > 10) {
+          res.statusCode = 400; res.end("available and a sessionLimit from 1 to 10 are required"); return;
+        }
+        await this.deps.users.saveProfile({ ...profile, operatorAvailable: available, operatorSessionLimit: sessionLimit });
+        await this.publishLiveUpdates();
+        return this.json(res, { ok: true, available, sessionLimit });
+      }
+
+      if (req.method === "POST" && url.pathname === API_PATHS.operator.message) {
+        if (!operatorId) { res.statusCode = 401; res.end("Operator token required"); return; }
+        const body = await readJson(req);
+        const conversationId = typeof body?.conversationId === "string" ? body.conversationId : undefined;
+        const text = typeof body?.text === "string" ? body.text : undefined;
+        if (!conversationId || !text || !this.deps.sendStaffMessage) {
+          res.statusCode = 400; res.end("conversationId and text required"); return;
+        }
+        const sent = await this.deps.sendStaffMessage(operatorId, conversationId, text);
+        if (!sent) { res.statusCode = 403; res.end("Message could not be sent to that active operator session"); return; }
+        await this.publishLiveUpdates();
+        return this.json(res, { ok: true });
       }
 
       if (req.method === "PATCH" && url.pathname === API_PATHS.moderator.participantProfile) {
@@ -247,22 +312,27 @@ export class AdminServer {
         const body = await readJson(req);
         const available = typeof body?.available === "boolean" ? body.available : undefined;
         const channels = Array.isArray(body?.channels) && body.channels.every((channel) => channel === "telegram" || channel === "whatsapp" || channel === "web") ? [...new Set(body.channels as string[])] : undefined;
+        const sessionLimit = typeof body?.sessionLimit === "number" ? body.sessionLimit : undefined;
         const profile = await this.deps.users.profileFor(moderatorId);
         const connected = (await this.deps.users.allIdentities()).filter((identity) => identity.userId === moderatorId).map((identity) => identity.channel);
-        if (!profile?.moderator || available === undefined || !channels || channels.some((channel) => !connected.includes(channel)) || (available && channels.length === 0)) {
+        if (!profile?.moderator || available === undefined || !channels ||
+          channels.some((channel) => !connected.includes(channel)) || (available && channels.length === 0) ||
+          sessionLimit === undefined || !Number.isInteger(sessionLimit) || sessionLimit < 1 || sessionLimit > 10) {
           console.warn("[admin] moderator settings rejected", {
             moderator: Boolean(profile?.moderator),
             availableProvided: available !== undefined,
             channelsValid: Boolean(channels),
             requestedChannels: channels,
             connectedChannels: connected,
-            availableRequiresChannel: Boolean(available && channels?.length === 0)
+            availableRequiresChannel: Boolean(available && channels?.length === 0),
+            sessionLimit
           });
-          res.statusCode = 400; res.end("Choose at least one connected channel before going available"); return;
+          res.statusCode = 400; res.end("Choose connected channels, a session limit from 1 to 10, and availability"); return;
         }
-        await this.deps.users.saveProfile({ ...profile, moderatorAvailable: available, moderatorChannels: channels });
-        console.info("[admin] moderator settings updated", { available, channels });
-        return this.json(res, { ok: true, available, channels });
+        await this.deps.users.saveProfile({ ...profile, moderatorAvailable: available, moderatorChannels: channels, moderatorSessionLimit: sessionLimit });
+        console.info("[admin] moderator settings updated", { available, channels, sessionLimit });
+        await this.publishLiveUpdates();
+        return this.json(res, { ok: true, available, channels, sessionLimit });
       }
 
       if (req.method === "POST" && url.pathname === API_PATHS.moderator.linkCode) {
@@ -317,7 +387,18 @@ export class AdminServer {
           channel: "operator",
           externalId: `${displayName}:${crypto.randomUUID()}`
         });
-        return this.json(res, { operatorUserId: identity.userId, displayName });
+        const token = randomBytes(32).toString("base64url");
+        await this.deps.users.saveProfile({
+          userId: identity.userId,
+          gender: "nonbinary",
+          country: "Not provided",
+          preferredGender: "any",
+          operator: true,
+          operatorAvailable: false,
+          operatorSessionLimit: 1,
+          operatorAccessHash: hashToken(token)
+        });
+        return this.json(res, { operatorUserId: identity.userId, displayName, token });
       }
 
       if (req.method === "POST" && url.pathname === API_PATHS.admin.watch) {
@@ -437,15 +518,18 @@ export class AdminServer {
     const url = new URL(request.url ?? "/", "http://localhost");
     const token = url.searchParams.get("token") ?? undefined;
     const moderatorId = token ? await this.moderatorForToken(token) : undefined;
+    const operatorId = token ? await this.operatorForToken(token) : undefined;
     const isAdmin = token === this.options.authToken || (!this.options.authToken && !token);
-    if (!isAdmin && !moderatorId) {
+    if (!isAdmin && !moderatorId && !operatorId) {
       socket.close(1008, "Unauthorized");
       return;
     }
 
     const client: LiveSocket = moderatorId
       ? { socket, role: { type: "moderator", userId: moderatorId } }
-      : { socket, role: { type: "admin" } };
+      : operatorId
+        ? { socket, role: { type: "operator", userId: operatorId } }
+        : { socket, role: { type: "admin" } };
 
     this.liveSockets.add(client);
     socket.on("close", () => this.liveSockets.delete(client));
@@ -456,6 +540,11 @@ export class AdminServer {
         type: "moderator-update",
         userId: client.role.userId,
         state: await this.buildModeratorState(client.role.userId)
+      });
+    } else if (client.role.type === "operator") {
+      this.sendSocket(socket, {
+        type: "operator-update",
+        state: await this.buildOperatorState(client.role.userId)
       });
     } else {
       this.sendSocket(socket, await this.buildLiveUpdate());
@@ -511,31 +600,62 @@ export class AdminServer {
     const connectedChannels = Array.from(new Set(identities
       .filter((identity) => identity.userId === moderatorId)
       .map((identity) => identity.channel)));
-    const active = await this.deps.conversations.all();
-    const conversation = active.find((entry) => entry.status === "active" && entry.participants.some((participant) => participant.userId === moderatorId));
-    const participant = conversation
-      ? conversation.participants.find((entry) => entry.userId !== moderatorId)
-      : undefined;
-
-    const participantProfile = participant ? await this.deps.users.profileFor(participant.userId) : undefined;
-    const participantIdentity = participant ? await this.deps.users.identityFor(participant.userId) : undefined;
+    const sessions = await this.buildStaffSessions(moderatorId);
+    const participant = sessions[0]?.participant;
 
     return {
       available: Boolean(profile?.moderatorAvailable),
+      sessionLimit: profile?.moderatorSessionLimit ?? 1,
       channels: profile?.moderatorChannels ?? [],
       connectedChannels,
-      activeConversationId: conversation?.id ?? null,
-      participant: participant && participantIdentity && participantProfile ? {
-        userId: participant.userId,
-        channel: participantIdentity.channel,
-        displayName: participantProfile.displayName,
-        age: participantProfile.age,
-        gender: participantProfile.gender,
-        country: participantProfile.country,
-        preferredGender: participantProfile.preferredGender,
-        preferredCountry: participantProfile.preferredCountry
-      } : undefined
+      activeConversationId: sessions[0]?.conversationId ?? null,
+      sessions,
+      participant
     };
+  }
+
+  private async buildOperatorState(operatorId: UserId): Promise<OperatorLiveState> {
+    const profile = await this.deps.users.profileFor(operatorId);
+    return {
+      userId: operatorId,
+      available: Boolean(profile?.operatorAvailable),
+      sessionLimit: profile?.operatorSessionLimit ?? 1,
+      sessions: await this.buildStaffSessions(operatorId)
+    };
+  }
+
+  private async buildStaffSessions(staffId: UserId): Promise<ModeratorLiveState["sessions"]> {
+    const conversations = await this.deps.conversations.all();
+    const sessions: ModeratorLiveState["sessions"][number][] = [];
+    for (const conversation of conversations) {
+      if (conversation.status !== "active" || conversation.kind !== "operator" ||
+        !conversation.participants.some((participant) => participant.userId === staffId)) continue;
+      const participant = conversation.participants.find((entry) => entry.userId !== staffId);
+      if (!participant) continue;
+      const [profile, identity] = await Promise.all([
+        this.deps.users.profileFor(participant.userId),
+        this.deps.users.identityFor(participant.userId)
+      ]);
+      if (!profile || !identity) continue;
+      sessions.push({
+        conversationId: conversation.id,
+        participant: {
+          userId: participant.userId,
+          channel: identity.channel,
+          displayName: profile.displayName,
+          age: profile.age,
+          gender: profile.gender,
+          country: profile.country,
+          preferredGender: profile.preferredGender,
+          preferredCountry: profile.preferredCountry
+        },
+        messages: this.deps.log.entriesFor(conversation.id).map((entry) => ({
+          ...entry,
+          timestamp: entry.timestamp.toISOString()
+        }))
+      });
+    }
+    return sessions;
   }
 
   private async isAssignedModerator(moderatorId: UserId, targetId: UserId): Promise<boolean> {
@@ -554,6 +674,19 @@ export class AdminServer {
       const profile = await this.deps.users.profileFor(id);
       if (!profile?.moderator || !profile.moderatorAccessHash) continue;
       const expected = Buffer.from(profile.moderatorAccessHash, "hex");
+      if (candidate.length === expected.length && timingSafeEqual(candidate, expected)) return id;
+    }
+    return undefined;
+  }
+
+  private async operatorForToken(token: string): Promise<UserId | undefined> {
+    if (!token) return undefined;
+    const candidate = Buffer.from(hashToken(token), "hex");
+    const identities = await this.deps.users.allIdentities();
+    for (const id of new Set(identities.map((identity) => identity.userId))) {
+      const profile = await this.deps.users.profileFor(id);
+      if (!profile?.operator || !profile.operatorAccessHash) continue;
+      const expected = Buffer.from(profile.operatorAccessHash, "hex");
       if (candidate.length === expected.length && timingSafeEqual(candidate, expected)) return id;
     }
     return undefined;

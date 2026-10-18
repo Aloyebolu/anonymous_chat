@@ -33,7 +33,12 @@ export interface UserProfile {
   readonly moderator?: boolean;
   readonly moderatorAvailable?: boolean;
   readonly moderatorChannels?: readonly string[];
+  readonly moderatorSessionLimit?: number;
   readonly moderatorAccessHash?: string;
+  readonly operator?: boolean;
+  readonly operatorAvailable?: boolean;
+  readonly operatorSessionLimit?: number;
+  readonly operatorAccessHash?: string;
   readonly moderatorLinkCodeHash?: string;
   readonly moderatorLinkCodeExpiresAt?: string;
 }

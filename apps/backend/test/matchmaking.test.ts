@@ -162,6 +162,45 @@ describe("matchmaking", () => {
     expect(matched[0].participants.map((participant) => participant.userId)).toContain(moderator.userId);
   });
 
+  it("assigns waiting users to a moderator only up to the configured session capacity", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2025-01-01T00:00:00Z"));
+    const { users, service, queue, conversations } = setup(testConfig({
+      lowSupplyThreshold: 1,
+      aiFallback: { ...MATCHMAKING_CONFIG.aiFallback, enabled: false }
+    }));
+    const first = await makeUser(users, "waiting-user-1", { gender: "male", country: "NG", preferredGender: "female" });
+    const second = await makeUser(users, "waiting-user-2", { gender: "male", country: "NG", preferredGender: "female" });
+    const third = await makeUser(users, "waiting-user-3", { gender: "male", country: "NG", preferredGender: "female" });
+    const moderator = await users.findOrCreate({ channel: "telegram", externalId: "moderator" });
+    await users.saveProfile({
+      userId: moderator.userId,
+      gender: "female",
+      country: "NG",
+      preferredGender: "any",
+      moderator: true,
+      moderatorAvailable: true,
+      moderatorChannels: ["telegram"],
+      moderatorSessionLimit: 2
+    });
+
+    await service.join(first.userId);
+    await service.join(second.userId);
+    await service.join(third.userId);
+    vi.advanceTimersByTime(service.aiThresholdMs(3));
+
+    const matched = await service.sweep();
+    const assigned = matched.filter((conversation) =>
+      conversation.participants.some((participant) => participant.userId === moderator.userId)
+    );
+    expect(assigned).toHaveLength(2);
+    expect(await queue.entries()).toHaveLength(1);
+    expect((await conversations.all()).filter((conversation) =>
+      conversation.status === "active" &&
+      conversation.participants.some((participant) => participant.userId === moderator.userId)
+    )).toHaveLength(2);
+  });
+
   it("uses AI after the fallback wait when no moderator is available", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2025-01-01T00:00:00Z"));

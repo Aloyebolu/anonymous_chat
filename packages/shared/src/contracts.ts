@@ -23,9 +23,11 @@ export interface VipPlan {
 
 export interface ModeratorLiveState {
   readonly available: boolean;
+  readonly sessionLimit: number;
   readonly channels: readonly string[];
   readonly connectedChannels: readonly string[];
   readonly activeConversationId: string | null;
+  readonly sessions: readonly StaffConversationState[];
   readonly participant?: {
     readonly userId: string;
     readonly channel: string;
@@ -36,6 +38,28 @@ export interface ModeratorLiveState {
     readonly preferredGender: string;
     readonly preferredCountry?: string;
   };
+}
+
+export interface OperatorLiveState {
+  readonly userId: string;
+  readonly available: boolean;
+  readonly sessionLimit: number;
+  readonly sessions: readonly StaffConversationState[];
+}
+
+export interface StaffConversationState {
+  readonly conversationId: string;
+  readonly participant: {
+    readonly userId: string;
+    readonly channel: string;
+    readonly displayName?: string;
+    readonly age?: number;
+    readonly gender: string;
+    readonly country: string;
+    readonly preferredGender: string;
+    readonly preferredCountry?: string;
+  };
+  readonly messages: readonly MessageLogEntryDto[];
 }
 
 export interface AdminLiveUpdate {

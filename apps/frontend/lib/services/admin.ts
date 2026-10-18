@@ -64,14 +64,14 @@ export const operatorMatch = async (operatorUserId: string, targetUserId: string
   return (await res.json()) as { conversation: { id: string } };
 };
 
-export const createOperatorSession = async (displayName: string): Promise<{ operatorUserId: string; displayName: string }> => {
+export const createOperatorSession = async (displayName: string): Promise<{ operatorUserId: string; displayName: string; token: string }> => {
   const res = await adminFetch(API_PATHS.admin.operatorLogin, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ displayName })
   });
   if (!res.ok) throw new Error(`operator login failed: ${res.status}`);
-  return (await res.json()) as { operatorUserId: string; displayName: string };
+  return (await res.json()) as { operatorUserId: string; displayName: string; token: string };
 };
 
 export const setShadowBan = async (targetUserId: string, banned: boolean): Promise<void> => {

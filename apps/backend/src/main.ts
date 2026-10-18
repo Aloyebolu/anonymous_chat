@@ -103,7 +103,16 @@ async function main(): Promise<void> {
   );
 
   const admin = new AdminServer(
-    { users, queue, conversations, reports, log, matching, moderationEvents },
+    {
+      users,
+      queue,
+      conversations,
+      reports,
+      log,
+      matching,
+      moderationEvents,
+      sendStaffMessage: (staffId, conversationId, text) => app.sendStaffMessage(staffId, conversationId, text)
+    },
     { matchmaking: MATCHMAKING_CONFIG, authToken: ADMIN_TOKEN }
   );
   admin.validateConfiguration();

@@ -22,7 +22,13 @@ export const API_PATHS = {
     linkCode: `${API_PREFIX}/moderator/link-code`,
     shadowBan: `${API_PREFIX}/moderator/shadow-ban`,
     participantProfile: `${API_PREFIX}/moderator/participant-profile`,
-    notice: `${API_PREFIX}/moderator/notice`
+    notice: `${API_PREFIX}/moderator/notice`,
+    message: `${API_PREFIX}/moderator/message`
+  },
+  operator: {
+    me: `${API_PREFIX}/operator/me`,
+    settings: `${API_PREFIX}/operator/settings`,
+    message: `${API_PREFIX}/operator/message`
   },
   miniApp: {
     prefix: `${API_PREFIX}/miniapp`,

@@ -8,9 +8,11 @@ const API = process.env.NEXT_PUBLIC_ADMIN_API;
 type ModeratorState = {
   userId: string;
   available: boolean;
+  sessionLimit: number;
   channels: string[];
   connectedChannels: string[];
   activeConversationId: string | null;
+  sessions: { conversationId: string }[];
   participant?: {
     userId: string;
     channel: string;
@@ -71,6 +73,7 @@ export default function ModeratorPage() {
   const [state, setState] = useState<ModeratorState | null>(null);
   const [channels, setChannels] = useState<string[]>([]);
   const [available, setAvailable] = useState(false);
+  const [sessionLimit, setSessionLimit] = useState(1);
   const [linkCode, setLinkCode] = useState("");
   const [banId, setBanId] = useState("");
   const [notice, setNotice] = useState("");
@@ -101,6 +104,7 @@ export default function ModeratorPage() {
       setState(data);
       setChannels(data.channels);
       setAvailable(data.available);
+      setSessionLimit(data.sessionLimit);
       setParticipantDraft(data.participant ? {
         displayName: data.participant.displayName ?? "",
         age: data.participant.age === undefined ? "" : String(data.participant.age),
@@ -146,6 +150,7 @@ export default function ModeratorPage() {
       setState((current) => ({ ...nextState, userId: data.userId ?? current?.userId ?? "" }));
       setChannels(nextState.channels);
       setAvailable(nextState.available);
+      setSessionLimit(nextState.sessionLimit);
       setParticipantDraft(nextState.participant ? {
         displayName: nextState.participant.displayName ?? "",
         age: nextState.participant.age === undefined ? "" : String(nextState.participant.age),
@@ -159,15 +164,16 @@ export default function ModeratorPage() {
     return () => socket.close();
   }, [token]);
 
-  const save = async (nextAvailable = available, nextChannels = channels) => {
+  const save = async (nextAvailable = available, nextChannels = channels, nextSessionLimit = sessionLimit) => {
     setBusy(true);
     try {
       await request(API_PATHS.moderator.settings, {
         method: "PATCH",
-        body: JSON.stringify({ available: nextAvailable, channels: nextChannels })
+        body: JSON.stringify({ available: nextAvailable, channels: nextChannels, sessionLimit: nextSessionLimit })
       });
       setAvailable(nextAvailable);
       setChannels(nextChannels);
+      setSessionLimit(nextSessionLimit);
       setNotice(nextAvailable ? "You’re available for support chats." : "You’re offline.");
       await refresh();
     } catch (reason) {
@@ -341,9 +347,10 @@ export default function ModeratorPage() {
               <div className="mod-hero-stat">
                 <span className="mod-hero-stat-label">Active conversation</span>
                 <span className="mod-hero-stat-value">
-                  {state.activeConversationId ? "Helping someone now" : "None right now"}
+                  {state.sessions.length ? `Helping ${state.sessions.length} of ${sessionLimit} session${sessionLimit === 1 ? "" : "s"}` : "None right now"}
                 </span>
               </div>
+              <a className="mod-session-link" href="/moderator/sessions">Open multi-session workspace →</a>
             </section>
 
             {state.activeConversationId && state.participant && participantDraft && (
@@ -445,6 +452,24 @@ export default function ModeratorPage() {
                   })}
                 </div>
               )}
+              <label className="mod-field">
+                <span className="mod-field-label">Concurrent support sessions (1–10)</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={sessionLimit}
+                  onChange={(event) => setSessionLimit(Math.max(1, Math.min(10, Number(event.target.value) || 1)))}
+                />
+              </label>
+              <button
+                type="button"
+                className="mod-btn mod-btn-ghost"
+                disabled={busy}
+                onClick={() => void save(available, channels, sessionLimit)}
+              >
+                Save session limit
+              </button>
               <div className="mod-actions">
                 <button
                   type="button"
@@ -564,6 +589,8 @@ const CSS_TEXT = `
   transition:border-color .2s ease,box-shadow .2s ease,background .2s ease}
 .mod-field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(167,139,250,.18)}
 .mod-field input::placeholder{color:var(--text-faint)}
+.mod-session-link{display:inline-flex;align-self:flex-start;color:#e9ddff;font-size:13px;font-weight:700;text-decoration:none}
+.mod-session-link:hover{text-decoration:underline}
 .mod-field select{width:100%;height:46px;padding:0 14px;border-radius:13px;font-size:14px;font-family:inherit;
   background:var(--surface-2);border:1px solid var(--border);color:var(--text);outline:none}
 .mod-profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}

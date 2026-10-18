@@ -1,5 +1,6 @@
 import {
   AI_CHANNEL,
+  conversationId as brandConversationId,
   isVipProfile,
   type CommunicationIdentity,
   type Conversation,
@@ -118,6 +119,36 @@ export class ChatApplication {
     await this.notifyMatches(conversations);
   }
 
+  async sendStaffMessage(staffId: UserId, conversationIdValue: string, rawText: string): Promise<boolean> {
+    const conversation = await this.conversations.byId(brandConversationId(conversationIdValue));
+    if (!conversation || conversation.status !== "active" || conversation.kind !== "operator" ||
+      !conversation.participants.some((participant) => participant.userId === staffId)) return false;
+    const profile = await this.users.profileFor(staffId);
+    if (!profile?.moderator && !profile?.operator) return false;
+
+    const text = rawText.trim().slice(0, MAX_MESSAGE_LENGTH);
+    if (!text) return false;
+    const check = this.moderation.inspect(text);
+    if (check.blocked) {
+      await this.recordModeration(staffId, `staff-message:${check.reason ?? "restricted-content"}`, text.length, 100);
+      return false;
+    }
+
+    const participant = conversation.participants.find((entry) => entry.userId !== staffId);
+    if (!participant) return false;
+    this.log.append({
+      id: crypto.randomUUID(),
+      conversationId: conversation.id,
+      fromUserId: staffId,
+      toUserId: participant.userId,
+      text,
+      timestamp: new Date(),
+      direction: "outbound"
+    });
+    await this.send(participant.identity, { kind: "text", text: escapeHtml(text) });
+    return true;
+  }
+
   // ─── Matchmaking notifications ──────────────────────────────────────────
 
   private async notifyMatches(conversations: readonly Conversation[]): Promise<void> {
@@ -131,6 +162,7 @@ export class ChatApplication {
           if (aiParticipant) return this.send(participant.identity, { kind: "text", text: MSG.matchWithAi });
           const other = conversation.participants.find((candidate) => candidate.userId !== participant.userId);
           const participantProfile = await this.users.profileFor(participant.userId);
+          if (conversation.kind === "operator" && participantProfile?.operator) return;
           if (conversation.kind === "operator" && participantProfile?.moderator) {
             const otherProfile = other ? await this.users.profileFor(other.userId) : undefined;
             const name = otherProfile?.displayName?.trim() || "Anonymous user";
@@ -162,6 +194,8 @@ export class ChatApplication {
   // ─── Commands ───────────────────────────────────────────────────────────
 
   private async handleCommand(identity: CommunicationIdentity, command: string): Promise<void> {
+    if (["next", "leave", "end", "report", "block"].includes(command) &&
+      await this.rejectAmbiguousStaffAction(identity)) return;
     if (command === "start") return this.startOnboarding(identity);
     if (command === "confirm-adult") return this.handleAction(identity, "confirm-adult");
     if (command === "find") return this.find(identity);
@@ -429,6 +463,8 @@ export class ChatApplication {
       });
     }
 
+    if (await this.rejectAmbiguousStaffAction(identity)) return;
+
     const gate = await this.resolveConversationFor(identity);
     if (!gate.ok) {
       if (gate.reason) await this.send(identity, { kind: "text", text: gate.reason });
@@ -620,6 +656,28 @@ private async handleMedia(identity: CommunicationIdentity, media: MediaPayload):
     if (!partner) return { ok: false, reason: MSG.noConversation };
 
     return { ok: true, conversation, partner };
+  }
+
+  private async rejectAmbiguousStaffAction(identity: CommunicationIdentity): Promise<boolean> {
+    const profile = await this.users.profileFor(identity.userId);
+    if (!profile?.moderator && !profile?.operator) return false;
+    const sessions = (await this.conversations.all()).filter((conversation) =>
+      conversation.status === "active" &&
+      conversation.kind === "operator" &&
+      conversation.participants.some((participant) => participant.userId === identity.userId)
+    );
+    if (sessions.length < 2) return false;
+
+    let workspaceUrl: string | undefined;
+    if (this.moderatorConsoleUrl) {
+      const path = profile.operator ? "/operator" : "/moderator/sessions";
+      workspaceUrl = new URL(path, this.moderatorConsoleUrl).toString();
+    }
+    await this.send(identity, {
+      kind: "text",
+      text: `You have multiple active support sessions. Use the web workspace to reply or manage chats.${workspaceUrl ? `\n${workspaceUrl}` : ""}`
+    });
+    return true;
   }
 
   // ─── Onboarding ─────────────────────────────────────────────────────────

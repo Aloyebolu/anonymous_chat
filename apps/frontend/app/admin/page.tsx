@@ -15,6 +15,7 @@ export default function AdminPage() {
   const [inspectedConversation, setInspectedConversation] = useState<string | null>(null);
   const [operatorUserId, setOperatorUserId] = useState<string>("");
   const [operatorName, setOperatorName] = useState<string>("");
+  const [operatorToken, setOperatorToken] = useState("");
   const [reportedUsers, setReportedUsers] = useState<ReportedUserSummary[]>([]);
   const [moderationEvents, setModerationEvents] = useState<ModerationEventSummary[]>([]);
   const [adminToken, setAdminToken] = useState("");
@@ -25,6 +26,7 @@ export default function AdminPage() {
     setAdminToken(readAdminToken());
     setOperatorUserId(window.localStorage.getItem("operatorUserId") ?? "");
     setOperatorName(window.localStorage.getItem("operatorName") ?? "");
+    setOperatorToken(window.sessionStorage.getItem("operatorToken") ?? "");
   }, []);
 
   useEffect(() => {
@@ -36,6 +38,8 @@ export default function AdminPage() {
     try {
       const session = await createOperatorSession(operatorName);
       setOperatorUserId(session.operatorUserId);
+      setOperatorToken(session.token);
+      window.sessionStorage.setItem("operatorToken", session.token);
       window.localStorage.setItem("operatorUserId", session.operatorUserId);
       window.localStorage.setItem("operatorName", session.displayName);
       setError(null);
@@ -136,7 +140,8 @@ export default function AdminPage() {
             <input value={operatorName} onChange={(e) => setOperatorName(e.target.value)} placeholder={STRINGS.operatorNamePlaceholder} maxLength={32} />
             <button onClick={() => void handleOperatorLogin()} disabled={!operatorName.trim()}>{STRINGS.operatorLogin}</button>
           </label>
-          {operatorUserId && <p className="muted">{STRINGS.operatorSignedIn}</p>}
+          {operatorUserId && <p className="muted">{STRINGS.operatorSignedIn} <a href="/operator">Open multi-session workspace</a></p>}
+          {operatorToken && <p className="muted">Operator access token (copy to share with the operator): <code>{operatorToken}</code></p>}
         </section>
 
         <section className="card" style={{ gridColumn: "1 / -1" }}>
