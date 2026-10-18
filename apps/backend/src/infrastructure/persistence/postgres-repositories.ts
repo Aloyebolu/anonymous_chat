@@ -89,19 +89,16 @@ export class PostgresUserRepository implements UserRepository {
       );
       const sourceId = identityResult.rows[0]?.user_id ?? identity.userId;
       if (sourceId !== target.userId) {
-        const sourceHasState = await client.query<{ exists: boolean }>(
+        const sourceHasActiveConversation = await client.query<{ exists: boolean }>(
           `SELECT
-             EXISTS (SELECT 1 FROM user_profiles WHERE user_id = $1)
-             OR EXISTS (SELECT 1 FROM user_eligibility WHERE user_id = $1)
-             OR EXISTS (SELECT 1 FROM match_queue WHERE user_id = $1)
-             OR EXISTS (
+             EXISTS (
                SELECT 1 FROM conversations
                WHERE status = 'active'
                  AND payload->'participants' @> jsonb_build_array(jsonb_build_object('userId', $1::text))
              ) AS exists`,
           [sourceId]
         );
-        if (sourceHasState.rows[0]?.exists) return undefined;
+        if (sourceHasActiveConversation.rows[0]?.exists) return undefined;
       }
 
       const claimed = { ...identity, userId: target.userId };
