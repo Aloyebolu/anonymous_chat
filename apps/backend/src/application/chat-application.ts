@@ -174,34 +174,43 @@ export class ChatApplication {
       );
       await Promise.all(
         conversation.participants.map(async (participant) => {
-          if (participant.identity.channel === AI_CHANNEL) return Promise.resolve();
-          if (aiParticipant) return this.send(participant.identity, { kind: "text", text: MSG.matchWithAi });
-          const other = conversation.participants.find((candidate) => candidate.userId !== participant.userId);
-          const participantProfile = await this.users.profileFor(participant.userId);
-          if (conversation.kind === "operator" && participantProfile?.operator) return;
-          if (conversation.kind === "operator" && participantProfile?.moderator) {
-            const otherProfile = other ? await this.users.profileFor(other.userId) : undefined;
-            const name = otherProfile?.displayName?.trim() || "Anonymous user";
-            const gender = otherProfile?.gender ?? "Not provided";
-            const age = otherProfile?.age === undefined ? "Not provided" : String(otherProfile.age);
-            const text = MSG.moderatorAssignment(
-              other?.identity.channel ?? "unknown",
-              name,
-              gender,
-              age,
-              this.safeModeratorConsoleUrl()
-            );
+          try {
+            if (participant.identity.channel === AI_CHANNEL) return;
+            if (aiParticipant) return await this.send(participant.identity, { kind: "text", text: MSG.matchWithAi });
+            const other = conversation.participants.find((candidate) => candidate.userId !== participant.userId);
+            const participantProfile = await this.users.profileFor(participant.userId);
+            if (conversation.kind === "operator" && participantProfile?.operator) return;
+            if (conversation.kind === "operator" && participantProfile?.moderator) {
+              const otherProfile = other ? await this.users.profileFor(other.userId) : undefined;
+              const name = otherProfile?.displayName?.trim() || "Anonymous user";
+              const gender = otherProfile?.gender ?? "Not provided";
+              const age = otherProfile?.age === undefined ? "Not provided" : String(otherProfile.age);
+              const text = MSG.moderatorAssignment(
+                other?.identity.channel ?? "unknown",
+                name,
+                gender,
+                age,
+                this.safeModeratorConsoleUrl()
+              );
+              await this.send(participant.identity, { kind: "text", text });
+              return await this.send(participant.identity, { kind: "text", text: MSG.moderatorWelcome });
+            }
+            const [viewerProfile, otherProfile] = await Promise.all([
+              this.users.profileFor(participant.userId),
+              other ? this.users.profileFor(other.userId) : Promise.resolve(undefined)
+            ]);
+            const visibleGender = isVipProfile(viewerProfile) && otherProfile ? otherProfile.gender : "VIP only";
+            const visibleName = otherProfile?.showName ? otherProfile.displayName : undefined;
+            const text = MSG.matchConnected(visibleGender, visibleName);
             await this.send(participant.identity, { kind: "text", text });
-            return this.send(participant.identity, { kind: "text", text: MSG.moderatorWelcome });
+          } catch (error) {
+            console.error("[matchmaking] Conversation created but participant notification failed.", {
+              conversationId: conversation.id,
+              participantId: participant.userId,
+              channel: participant.identity.channel,
+              error
+            });
           }
-          const [viewerProfile, otherProfile] = await Promise.all([
-            this.users.profileFor(participant.userId),
-            other ? this.users.profileFor(other.userId) : Promise.resolve(undefined)
-          ]);
-          const visibleGender = isVipProfile(viewerProfile) && otherProfile ? otherProfile.gender : "VIP only";
-          const visibleName = otherProfile?.showName ? otherProfile.displayName : undefined;
-          const text = MSG.matchConnected(visibleGender, visibleName);
-          return this.send(participant.identity, { kind: "text", text });
         })
       );
     }

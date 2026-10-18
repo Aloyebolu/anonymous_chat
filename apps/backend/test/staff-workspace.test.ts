@@ -12,6 +12,75 @@ import {
 import { ChannelRegistry } from "../src/ports/channels.js";
 
 describe("staff multi-session routing", () => {
+  it.each(["whatsapp", "telegram"])("assigns and notifies an opted-in %s moderator", async (channel) => {
+    const users = new InMemoryUserRepository();
+    const queue = new InMemoryMatchQueueRepository();
+    const conversations = new InMemoryConversationRepository();
+    const participant = await users.findOrCreate({ channel: "web", externalId: "waiting-participant" });
+    const moderator = await users.findOrCreate({ channel, externalId: "linked-moderator" });
+    await users.saveEligibility({
+      userId: participant.userId,
+      status: "eligible",
+      method: "self-declared-18-plus",
+      verifiedAt: new Date()
+    });
+    await users.saveProfile({
+      userId: participant.userId,
+      gender: "male",
+      country: "NG",
+      preferredGender: "any"
+    });
+    await users.saveProfile({
+      userId: moderator.userId,
+      gender: "nonbinary",
+      country: "NG",
+      preferredGender: "any",
+      moderator: true,
+      moderatorAvailable: true,
+      moderatorChannels: [channel]
+    });
+    await queue.enqueue(participant.userId);
+
+    const config = {
+      ...MATCHMAKING_CONFIG,
+      jitter: 0,
+      lowSupplyThreshold: 1,
+      aiFallback: { ...MATCHMAKING_CONFIG.aiFallback, baseMs: 0, minMs: 0, maxMs: 0 }
+    };
+    const matching = new MatchmakingService(users, queue, conversations, config);
+    const channels = new ChannelRegistry();
+    const webDriver = new FakeChannelDriver("web");
+    const moderatorDriver = new FakeChannelDriver(channel);
+    channels.register(webDriver);
+    channels.register(moderatorDriver);
+    const app = new ChatApplication(
+      users,
+      conversations,
+      channels,
+      matching,
+      { inspect: () => ({ blocked: false }) },
+      { reply: async () => "" },
+      { save: async () => undefined, all: async () => [] },
+      new InMemoryMessageLogRepository()
+    );
+
+    await app.runMatchmakingSweep();
+
+    const [session] = await conversations.all();
+    expect(session.kind).toBe("operator");
+    expect(session.participants.map((entry) => entry.userId)).toContain(moderator.userId);
+    expect(moderatorDriver.sent.some((entry) =>
+      entry.recipient.externalId === moderator.externalId &&
+      entry.message.kind === "text" &&
+      entry.message.text.includes("New support chat assigned")
+    )).toBe(true);
+    expect(webDriver.sent.some((entry) =>
+      entry.recipient.externalId === participant.externalId &&
+      entry.message.kind === "text" &&
+      entry.message.text.includes("Chat connected")
+    )).toBe(true);
+  });
+
   it("directs channel replies to the web workspace when multiple sessions are active", async () => {
     const users = new InMemoryUserRepository();
     const conversations = new InMemoryConversationRepository();
