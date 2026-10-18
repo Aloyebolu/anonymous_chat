@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { API_PATHS } from "@anonymous-chat/shared/api";
 import { isVipProfile, VIP_CONFIG, userId, type UserProfile } from "../../domain/types.js";
 import type { PointsRepository, UserRepository } from "../../ports/repositories.js";
 import { applyCors, handlePreflight } from "./cors.js";
@@ -46,20 +47,20 @@ export class MiniAppServer {
       const identity = await this.users.findOrCreate({ channel: "telegram", externalId: String(telegramUser.id) });
       const profile = await this.users.profileFor(identity.userId);
 
-      if (req.method === "GET" && url.pathname === "/api/miniapp/me") {
+      if (req.method === "GET" && url.pathname === API_PATHS.miniApp.me) {
         if (!profile) return json(res, 409, { error: "Complete onboarding in the bot before using the Mini App." });
         return json(res, 200, { profile, points: await this.points.balance(identity.userId), vip: isVipProfile(profile), vipCostPoints: VIP_CONFIG.pointsCost, vipDays: VIP_CONFIG.durationDays, vipPaymentMethods: ["points"] });
       }
 
       if (!profile) return json(res, 409, { error: "Complete onboarding in the bot before using the Mini App." });
 
-      if (req.method === "POST" && url.pathname === "/api/miniapp/daily-check-in") {
+      if (req.method === "POST" && url.pathname === API_PATHS.miniApp.dailyCheckIn) {
         const today = new Date().toISOString().slice(0, 10);
         const earned = await this.points.awardActivity(identity.userId, `daily-check-in:${identity.userId}:${today}`, DAILY_CHECK_IN_POINTS);
         return json(res, 200, { earned, points: await this.points.balance(identity.userId) });
       }
 
-      if (req.method === "PATCH" && url.pathname === "/api/miniapp/profile") {
+      if (req.method === "PATCH" && url.pathname === API_PATHS.miniApp.profile) {
         const body = await readJson(req);
         if (!body) return json(res, 400, { error: "Invalid JSON body." });
         const next = validateProfileUpdate(body, profile, isVipProfile(profile));
@@ -70,7 +71,7 @@ export class MiniAppServer {
         return json(res, 200, { profile: await this.users.profileFor(identity.userId), earned, points: await this.points.balance(identity.userId) });
       }
 
-      if (req.method === "POST" && url.pathname === "/api/miniapp/vip") {
+      if (req.method === "POST" && url.pathname === API_PATHS.miniApp.vip) {
         const body = await readJson(req);
         const key = typeof body?.idempotencyKey === "string" && /^[a-zA-Z0-9-]{8,100}$/.test(body.idempotencyKey)
           ? body.idempotencyKey : undefined;

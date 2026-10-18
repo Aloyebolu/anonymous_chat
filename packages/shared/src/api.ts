@@ -1,0 +1,31 @@
+export const API_PREFIX = "/api";
+export const LOCAL_API_ORIGIN = "http://localhost:3000";
+
+export const API_PATHS = {
+  send: `${API_PREFIX}/send`,
+  stream: `${API_PREFIX}/stream`,
+  admin: {
+    state: `${API_PREFIX}/state`,
+    reports: `${API_PREFIX}/reports`,
+    moderationEvents: `${API_PREFIX}/moderation-events`,
+    shadowBanUser: `${API_PREFIX}/user/shadow-ban`,
+    grantModerator: `${API_PREFIX}/moderators/grant`,
+    reportedUsers: `${API_PREFIX}/reported-users`,
+    operatorLogin: `${API_PREFIX}/operator/login`,
+    operatorMatch: `${API_PREFIX}/operator/match`,
+    watch: `${API_PREFIX}/watch`
+  },
+  moderator: {
+    me: `${API_PREFIX}/moderator/me`,
+    settings: `${API_PREFIX}/moderator/settings`,
+    linkCode: `${API_PREFIX}/moderator/link-code`,
+    shadowBan: `${API_PREFIX}/moderator/shadow-ban`
+  },
+  miniApp: {
+    prefix: `${API_PREFIX}/miniapp`,
+    me: `${API_PREFIX}/miniapp/me`,
+    dailyCheckIn: `${API_PREFIX}/miniapp/daily-check-in`,
+    profile: `${API_PREFIX}/miniapp/profile`,
+    vip: `${API_PREFIX}/miniapp/vip`
+  }
+} as const;

@@ -1,4 +1,5 @@
 import { STRINGS } from "../constants";
+import { API_PATHS } from "@anonymous-chat/shared/api";
 
 const WEB = process.env.NEXT_PUBLIC_WEB_API;
 
@@ -9,7 +10,7 @@ export interface SendPayload {
 }
 
 export const sendInbound = async (payload: SendPayload): Promise<void> => {
-  const res = await fetch(`${WEB}/api/send`, {
+  const res = await fetch(`${WEB}${API_PATHS.send}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload)
@@ -20,6 +21,6 @@ export const sendInbound = async (payload: SendPayload): Promise<void> => {
 };
 
 export const streamUrl = (user: string): string =>
-  `${WEB}/api/stream?user=${encodeURIComponent(user)}`;
+  `${WEB}${API_PATHS.stream}?user=${encodeURIComponent(user)}`;
 
 export const commands = STRINGS.commands;

@@ -7,6 +7,7 @@ import type {
   ModerationEventSummary,
   ReportedUserSummary
 } from "@anonymous-chat/shared/contracts";
+import { API_PATHS, API_PREFIX } from "@anonymous-chat/shared/api";
 import { AI_CHANNEL, conversationId as brandConversationId, userId as brandUserId } from "../../domain/types.js";
 import type { MatchmakingConfig } from "../../application/matchmaking.js";
 import type { MatchmakingService } from "../../application/matchmaking.js";
@@ -52,10 +53,14 @@ export class AdminServer {
     const bearer = (req.headers.authorization ?? "").replace(/^Bearer\s+/i, "");
     const moderatorId = bearer ? await this.moderatorForToken(bearer) : undefined;
     const isAdmin = bearer === this.options.authToken || (!this.options.authToken && !moderatorId);
-    if (url.pathname.startsWith("/api/") && !isAdmin) {
-      const allowedForModerator = Boolean(moderatorId) && [
-        "/api/moderator/me", "/api/moderator/settings", "/api/moderator/link-code", "/api/moderator/shadow-ban"
-      ].includes(url.pathname);
+    if (url.pathname.startsWith(`${API_PREFIX}/`) && !isAdmin) {
+      const moderatorPaths = new Set<string>([
+        API_PATHS.moderator.me,
+        API_PATHS.moderator.settings,
+        API_PATHS.moderator.linkCode,
+        API_PATHS.moderator.shadowBan
+      ]);
+      const allowedForModerator = Boolean(moderatorId) && moderatorPaths.has(url.pathname);
       if (!allowedForModerator) {
         res.statusCode = 401;
         res.setHeader("www-authenticate", "Bearer");
@@ -65,15 +70,15 @@ export class AdminServer {
     }
 
     try {
-      if (req.method === "GET" && url.pathname === "/api/state") return this.json(res, await this.buildSnapshot());
-      if (req.method === "GET" && url.pathname === "/api/reports") {
+      if (req.method === "GET" && url.pathname === API_PATHS.admin.state) return this.json(res, await this.buildSnapshot());
+      if (req.method === "GET" && url.pathname === API_PATHS.admin.reports) {
         const reports: AdminReport[] = (await this.deps.reports.all()).map((report) => ({
           ...report,
           createdAt: report.createdAt.toISOString()
         }));
         return this.json(res, { reports });
       }
-      if (req.method === "GET" && url.pathname === "/api/moderation-events") {
+      if (req.method === "GET" && url.pathname === API_PATHS.admin.moderationEvents) {
         const events: ModerationEventSummary[] = (await this.deps.moderationEvents?.all() ?? []).map((event) => ({
           ...event,
           createdAt: event.createdAt.toISOString()
@@ -81,7 +86,7 @@ export class AdminServer {
         return this.json(res, { events });
       }
 
-      if (req.method === "POST" && url.pathname === "/api/user/shadow-ban") {
+      if (req.method === "POST" && url.pathname === API_PATHS.admin.shadowBanUser) {
         if (!isAdmin) { res.statusCode = 403; res.end("Admin permission required"); return; }
         const body = await readJson(req);
         const id = typeof body?.userId === "string" ? brandUserId(body.userId) : undefined;
@@ -98,7 +103,7 @@ export class AdminServer {
         return this.json(res, { ok: true, userId: id, shadowBanned: banned });
       }
 
-      if (req.method === "POST" && url.pathname === "/api/moderators/grant") {
+      if (req.method === "POST" && url.pathname === API_PATHS.admin.grantModerator) {
         if (!isAdmin) { res.statusCode = 403; res.end("Admin permission required"); return; }
         const body = await readJson(req);
         const id = typeof body?.userId === "string" ? brandUserId(body.userId) : undefined;
@@ -118,7 +123,7 @@ export class AdminServer {
         return this.json(res, { ok: true, granted: true, token });
       }
 
-      if (req.method === "GET" && url.pathname === "/api/moderator/me") {
+      if (req.method === "GET" && url.pathname === API_PATHS.moderator.me) {
         if (!moderatorId) { res.statusCode = 401; res.end("Moderator token required"); return; }
         const profile = await this.deps.users.profileFor(moderatorId);
         const identities = (await this.deps.users.allIdentities()).filter((identity) => identity.userId === moderatorId && ["telegram", "whatsapp"].includes(identity.channel));
@@ -126,8 +131,8 @@ export class AdminServer {
         return this.json(res, { userId: moderatorId, available: profile?.moderatorAvailable ?? false, channels: profile?.moderatorChannels ?? [], connectedChannels: [...new Set(identities.map((identity) => identity.channel))], activeConversationId: conversation?.id ?? null });
       }
 
-      if (req.method === "PATCH" && url.pathname === "/api/moderator/settings") {
-        console.info("[admin] PATCH /api/moderator/settings", { authenticated: Boolean(moderatorId) });
+      if (req.method === "PATCH" && url.pathname === API_PATHS.moderator.settings) {
+        console.info(`[admin] PATCH ${API_PATHS.moderator.settings}`, { authenticated: Boolean(moderatorId) });
         if (!moderatorId) { console.warn("[admin] moderator settings rejected: missing moderator token"); res.statusCode = 401; res.end("Moderator token required"); return; }
         const body = await readJson(req);
         const available = typeof body?.available === "boolean" ? body.available : undefined;
@@ -150,7 +155,7 @@ export class AdminServer {
         return this.json(res, { ok: true, available, channels });
       }
 
-      if (req.method === "POST" && url.pathname === "/api/moderator/link-code") {
+      if (req.method === "POST" && url.pathname === API_PATHS.moderator.linkCode) {
         if (!moderatorId) { res.statusCode = 401; res.end("Moderator token required"); return; }
         const profile = await this.deps.users.profileFor(moderatorId);
         if (!profile?.moderator) { res.statusCode = 403; res.end("Moderator permission required"); return; }
@@ -159,7 +164,7 @@ export class AdminServer {
         return this.json(res, { code, expiresInSeconds: 600 });
       }
 
-      if (req.method === "POST" && url.pathname === "/api/moderator/shadow-ban") {
+      if (req.method === "POST" && url.pathname === API_PATHS.moderator.shadowBan) {
         if (!moderatorId) { res.statusCode = 401; res.end("Moderator token required"); return; }
         const body = await readJson(req);
         const id = typeof body?.userId === "string" ? brandUserId(body.userId) : undefined;
@@ -176,7 +181,7 @@ export class AdminServer {
         return this.json(res, { ok: true, userId: id, shadowBanned: banned });
       }
 
-      if (req.method === "GET" && url.pathname === "/api/reported-users") {
+      if (req.method === "GET" && url.pathname === API_PATHS.admin.reportedUsers) {
         const reports = await this.deps.reports.all();
         const grouped = new Map<string, { reportedUserId: string; reports: number; latestReportAt: Date }>();
         for (const report of reports) {
@@ -194,7 +199,7 @@ export class AdminServer {
         return this.json(res, { users });
       }
 
-      if (req.method === "POST" && url.pathname === "/api/operator/login") {
+      if (req.method === "POST" && url.pathname === API_PATHS.admin.operatorLogin) {
         const body = await readJson(req);
         const displayName = typeof body?.displayName === "string" ? body.displayName.trim().slice(0, 32) : "";
         if (!displayName) { res.statusCode = 400; res.end("displayName required"); return; }
@@ -205,20 +210,20 @@ export class AdminServer {
         return this.json(res, { operatorUserId: identity.userId, displayName });
       }
 
-      if (req.method === "POST" && url.pathname === "/api/watch") {
+      if (req.method === "POST" && url.pathname === API_PATHS.admin.watch) {
         const body = await readJson(req);
         const id = typeof body?.conversationId === "string" ? body.conversationId : undefined;
         if (!id) { res.statusCode = 400; res.end("conversationId required"); return; }
         this.deps.log.watch(brandConversationId(id));
         return this.json(res, { ok: true });
       }
-      if (req.method === "DELETE" && url.pathname === "/api/watch") {
+      if (req.method === "DELETE" && url.pathname === API_PATHS.admin.watch) {
         const id = url.searchParams.get("conversationId");
         if (!id) { res.statusCode = 400; res.end("conversationId required"); return; }
         this.deps.log.unwatch(brandConversationId(id));
         return this.json(res, { ok: true });
       }
-      if (req.method === "GET" && url.pathname === "/api/watch") {
+      if (req.method === "GET" && url.pathname === API_PATHS.admin.watch) {
         const id = url.searchParams.get("conversationId");
         if (!id) { res.statusCode = 400; res.end("conversationId required"); return; }
         const entries: MessageLogEntryDto[] = this.deps.log.entriesFor(brandConversationId(id)).map((entry) => ({
@@ -228,7 +233,7 @@ export class AdminServer {
         return this.json(res, { entries });
       }
 
-      if (req.method === "POST" && url.pathname === "/api/operator/match") {
+      if (req.method === "POST" && url.pathname === API_PATHS.admin.operatorMatch) {
         const body = await readJson(req);
         const operatorUserId = typeof body?.operatorUserId === "string" ? body.operatorUserId : undefined;
         const targetUserId = typeof body?.targetUserId === "string" ? body.targetUserId : undefined;

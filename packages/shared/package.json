@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./api": "./src/api.ts",
     "./domain": "./src/domain.ts",
     "./contracts": "./src/contracts.ts",
     "./channel-contracts": "./src/channel-contracts.ts",

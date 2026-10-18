@@ -5,6 +5,7 @@ import type {
   ModerationEventSummary,
   ReportedUserSummary
 } from "@anonymous-chat/shared/contracts";
+import { API_PATHS } from "@anonymous-chat/shared/api";
 
 const ADMIN = process.env.NEXT_PUBLIC_ADMIN_API ?? process.env.NEXT_PUBLIC_WEB_API;
 
@@ -22,19 +23,19 @@ const adminFetch = (path: string, init: RequestInit = {}): Promise<Response> => 
 };
 
 export const fetchState = async (): Promise<AdminState> => {
-  const res = await adminFetch("/api/state");
+  const res = await adminFetch(API_PATHS.admin.state);
   if (!res.ok) throw new Error(`state failed: ${res.status}`);
   return (await res.json()) as AdminState;
 };
 
 export const fetchReports = async (): Promise<{ reports: AdminReport[] }> => {
-  const res = await adminFetch("/api/reports");
+  const res = await adminFetch(API_PATHS.admin.reports);
   if (!res.ok) throw new Error(`reports failed: ${res.status}`);
   return (await res.json()) as { reports: AdminReport[] };
 };
 
 export const watchConversation = async (conversationId: string): Promise<void> => {
-  const res = await adminFetch("/api/watch", {
+  const res = await adminFetch(API_PATHS.admin.watch, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ conversationId })
@@ -43,18 +44,18 @@ export const watchConversation = async (conversationId: string): Promise<void> =
 };
 
 export const unwatchConversation = async (conversationId: string): Promise<void> => {
-  const res = await adminFetch(`/api/watch?conversationId=${encodeURIComponent(conversationId)}`, { method: "DELETE" });
+  const res = await adminFetch(`${API_PATHS.admin.watch}?conversationId=${encodeURIComponent(conversationId)}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`unwatch failed: ${res.status}`);
 };
 
 export const fetchWatchLog = async (conversationId: string): Promise<{ entries: MessageLogEntry[] }> => {
-  const res = await adminFetch(`/api/watch?conversationId=${encodeURIComponent(conversationId)}`);
+  const res = await adminFetch(`${API_PATHS.admin.watch}?conversationId=${encodeURIComponent(conversationId)}`);
   if (!res.ok) throw new Error(`watch log failed: ${res.status}`);
   return (await res.json()) as { entries: MessageLogEntry[] };
 };
 
 export const operatorMatch = async (operatorUserId: string, targetUserId: string): Promise<{ conversation: { id: string } }> => {
-  const res = await adminFetch("/api/operator/match", {
+  const res = await adminFetch(API_PATHS.admin.operatorMatch, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ operatorUserId, targetUserId })
@@ -64,7 +65,7 @@ export const operatorMatch = async (operatorUserId: string, targetUserId: string
 };
 
 export const createOperatorSession = async (displayName: string): Promise<{ operatorUserId: string; displayName: string }> => {
-  const res = await adminFetch("/api/operator/login", {
+  const res = await adminFetch(API_PATHS.admin.operatorLogin, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ displayName })
@@ -74,7 +75,7 @@ export const createOperatorSession = async (displayName: string): Promise<{ oper
 };
 
 export const setShadowBan = async (targetUserId: string, banned: boolean): Promise<void> => {
-  const res = await adminFetch("/api/user/shadow-ban", {
+  const res = await adminFetch(API_PATHS.admin.shadowBanUser, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ userId: targetUserId, banned })
@@ -83,7 +84,7 @@ export const setShadowBan = async (targetUserId: string, banned: boolean): Promi
 };
 
 export const setModerator = async (targetUserId: string, granted: boolean): Promise<{ token?: string }> => {
-  const res = await adminFetch("/api/moderators/grant", {
+  const res = await adminFetch(API_PATHS.admin.grantModerator, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ userId: targetUserId, granted })
@@ -93,13 +94,13 @@ export const setModerator = async (targetUserId: string, granted: boolean): Prom
 };
 
 export const fetchReportedUsers = async (): Promise<{ users: ReportedUserSummary[] }> => {
-  const res = await adminFetch("/api/reported-users");
+  const res = await adminFetch(API_PATHS.admin.reportedUsers);
   if (!res.ok) throw new Error(`reported users failed: ${res.status}`);
   return (await res.json()) as { users: ReportedUserSummary[] };
 };
 
 export const fetchModerationEvents = async (): Promise<{ events: ModerationEventSummary[] }> => {
-  const res = await adminFetch("/api/moderation-events");
+  const res = await adminFetch(API_PATHS.admin.moderationEvents);
   if (!res.ok) throw new Error(`moderation events failed: ${res.status}`);
   return (await res.json()) as { events: ModerationEventSummary[] };
 };

@@ -22,8 +22,8 @@ a Telegram Mini App, robust onboarding, a useful command set, and clear bot repl
 - Application data is persisted in PostgreSQL using versioned SQL migrations.
   Configure `DATABASE_URL`; migrations run automatically at startup or explicitly
   with `npm run db:migrate` from `apps/backend`.
-- Cross-app domain types, API contracts, channel contracts, and constants live
-  in `packages/shared`; both apps link to that local package.
+- Cross-app domain types, API contracts, channel contracts, constants, and HTTP
+  route paths live in `packages/shared`; both apps link to that local package.
 - Backend outbound text uses shared HTML rich text, rendered natively by
   Telegram, converted to plain text by WhatsApp, and safely rendered by web.
 - Matchmaking offers regular users first; after the fallback threshold, an
@@ -115,3 +115,6 @@ complete based only on a plan or mock screen.
   WhatsApp plain-text conversion, safe web rendering) and delayed moderator
   matchmaking until the fallback threshold, with AI attempted when no moderator
   can take the user.
+- 2026-10-18: Centralized application API route paths and the local API origin
+  in `packages/shared/src/api.ts`; backend handlers and frontend API clients
+  now use the shared constants.

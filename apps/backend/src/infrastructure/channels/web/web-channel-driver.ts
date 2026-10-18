@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type RequestListener, type Server, 
 import { userId } from "../../../domain/types.js";
 import type { ChannelCapabilities, ChannelDriver, ChannelRecipient, InboundEvent, OutboundMessage } from "../../../ports/channels.js";
 import { applyCors, handlePreflight } from "../../http/cors.js";
+import { API_PATHS } from "@anonymous-chat/shared/api";
 
 const COMMANDS = new Set(["start", "find", "next", "leave", "report", "block", "help", "points", "vip", "end", "app"]);
 
@@ -65,8 +66,8 @@ export class WebChannelDriver implements ChannelDriver {
       res.end(JSON.stringify({ ok: true, clients: this.clients.size }));
       return;
     }
-    if (req.method === "GET" && url.pathname === "/api/stream") return this.serveStream(url, res);
-    if (req.method === "POST" && url.pathname === "/api/send") return this.acceptSend(req, res);
+    if (req.method === "GET" && url.pathname === API_PATHS.stream) return this.serveStream(url, res);
+    if (req.method === "POST" && url.pathname === API_PATHS.send) return this.acceptSend(req, res);
     if (this.fallbackHandler) {
       this.fallbackHandler(req, res);
       return;

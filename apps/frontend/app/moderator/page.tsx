@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { API_PATHS } from "@anonymous-chat/shared/api";
 
 const API = process.env.NEXT_PUBLIC_ADMIN_API;
 type ModeratorState = { userId: string; available: boolean; channels: string[]; connectedChannels: string[]; activeConversationId: string | null };
@@ -24,7 +25,7 @@ export default function ModeratorPage() {
 
   const refresh = useCallback(async () => {
     try {
-      const data = await request("/api/moderator/me") as unknown as ModeratorState;
+      const data = await request(API_PATHS.moderator.me) as unknown as ModeratorState;
       setState(data); setChannels(data.channels); setAvailable(data.available); setError("");
       window.sessionStorage.setItem("moderatorToken", token);
     } catch (reason) { setState(null); setError(reason instanceof Error ? reason.message : "Could not load moderator account"); }
@@ -35,19 +36,19 @@ export default function ModeratorPage() {
 
   const save = async (nextAvailable = available, nextChannels = channels) => {
     try {
-      await request("/api/moderator/settings", { method: "PATCH", body: JSON.stringify({ available: nextAvailable, channels: nextChannels }) });
+      await request(API_PATHS.moderator.settings, { method: "PATCH", body: JSON.stringify({ available: nextAvailable, channels: nextChannels }) });
       setAvailable(nextAvailable); setChannels(nextChannels); setNotice(nextAvailable ? "You’re available for support chats." : "You’re offline.");
       await refresh();
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not save settings"); }
   };
 
   const createLinkCode = async () => {
-    try { const result = await request("/api/moderator/link-code", { method: "POST", body: "{}" }); setLinkCode(String(result.code)); setNotice("Code expires in 10 minutes. Send it from the other channel as /modlink CODE."); }
+    try { const result = await request(API_PATHS.moderator.linkCode, { method: "POST", body: "{}" }); setLinkCode(String(result.code)); setNotice("Code expires in 10 minutes. Send it from the other channel as /modlink CODE."); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "Could not create link code"); }
   };
 
   const setShadowBan = async (banned: boolean) => {
-    try { await request("/api/moderator/shadow-ban", { method: "POST", body: JSON.stringify({ userId: banId.trim(), banned }) }); setNotice(banned ? "Account shadow-banned." : "Shadow-ban lifted."); setBanId(""); }
+    try { await request(API_PATHS.moderator.shadowBan, { method: "POST", body: JSON.stringify({ userId: banId.trim(), banned }) }); setNotice(banned ? "Account shadow-banned." : "Shadow-ban lifted."); setBanId(""); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "Could not update account"); }
   };
 

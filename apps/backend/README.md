@@ -48,8 +48,9 @@ can also be used explicitly. Migrations are ordered files in
 `src/infrastructure/persistence/migrations/`; add a new numbered `.sql` file
 for each schema change rather than editing a migration that has already shipped.
 
-Types and constants used across both apps live in `../../packages/shared`.
-Add shared domain or API types there instead of duplicating them in either app.
+Types, constants, and API route paths used across both apps live in
+`../../packages/shared`. Add shared domain or API definitions there instead of
+duplicating them in either app.
 
 ### Rich text and fallback matchmaking
 

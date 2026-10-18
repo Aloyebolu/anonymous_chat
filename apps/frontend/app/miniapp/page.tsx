@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { API_PATHS, LOCAL_API_ORIGIN } from "@anonymous-chat/shared/api";
 import { VIP_CONFIG } from "@anonymous-chat/shared/constants";
 import type { Gender, GenderPreference } from "@anonymous-chat/shared/domain";
 import type { MiniAppProfile as MiniProfile } from "@anonymous-chat/shared/contracts";
@@ -14,7 +15,7 @@ interface TelegramMiniApp {
 }
 declare global { interface Window { Telegram?: { WebApp: TelegramMiniApp } } }
 
-const API = process.env.NEXT_PUBLIC_MINI_APP_API ?? process.env.NEXT_PUBLIC_WEB_API ?? "http://localhost:3000";
+const API = process.env.NEXT_PUBLIC_MINI_APP_API ?? process.env.NEXT_PUBLIC_WEB_API ?? LOCAL_API_ORIGIN;
 
 const COPY = {
   title: "Your little corner",
@@ -322,7 +323,7 @@ export default function MiniAppPage() {
     if (!initData) return;
     setLoading(true);
     try {
-      const data = await request("/api/miniapp/me");
+      const data = await request(API_PATHS.miniApp.me);
       setProfile(data.profile as MiniProfile);
       setPoints(Number(data.points ?? 0));
       setVipCost(Number(data.vipCostPoints ?? VIP_CONFIG.pointsCost));
@@ -362,7 +363,7 @@ export default function MiniAppPage() {
     if (!profile) return;
     setBusy(true); setNotice(""); setError("");
     try {
-      const data = await request("/api/miniapp/profile", "PATCH", {
+      const data = await request(API_PATHS.miniApp.profile, "PATCH", {
         displayName: profile.displayName ?? "",
         showName: profile.showName ?? false,
         age: profile.age ? Number(profile.age) : undefined,
@@ -383,7 +384,7 @@ export default function MiniAppPage() {
   const checkIn = async () => {
     setBusy(true); setError(""); setNotice("");
     try {
-      const data = await request("/api/miniapp/daily-check-in", "POST", {});
+      const data = await request(API_PATHS.miniApp.dailyCheckIn, "POST", {});
       setPoints(Number(data.points ?? points));
       setNotice(Number(data.earned) > 0 ? COPY.checkInDone : COPY.checkInAgain);
     } catch (reason) { setError(reason instanceof Error ? reason.message : COPY.error); }
@@ -393,7 +394,7 @@ export default function MiniAppPage() {
   const buyVip = async () => {
     setBusy(true); setError(""); setNotice("");
     try {
-      const data = await request("/api/miniapp/vip", "POST", { idempotencyKey: crypto.randomUUID() });
+      const data = await request(API_PATHS.miniApp.vip, "POST", { idempotencyKey: crypto.randomUUID() });
       setProfile(data.profile as MiniProfile);
       setPoints(Number(data.points ?? points));
       setNotice(COPY.active);

@@ -25,6 +25,7 @@ import { TelegramChannelDriver } from "./infrastructure/channels/telegram/telegr
 import { mapTelegramInbound } from "./infrastructure/channels/telegram/telegram-mapper.js";
 import { TelegramBotBridgeImpl } from "./infrastructure/channels/telegram/telegram-bot-bridge.js";
 import { MiniAppServer } from "./infrastructure/http/mini-app-server.js";
+import { API_PATHS } from "@anonymous-chat/shared/api";
 import dotenv from "dotenv"
 dotenv.config({ path: './src/.env' })
 
@@ -105,7 +106,7 @@ async function main(): Promise<void> {
   // ---- Start non-chat infrastructure first --------------------------------
   await web.start(receive, (req, res) => {
     const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
-    if (pathname.startsWith("/api/miniapp") && miniApp) {
+    if (pathname.startsWith(API_PATHS.miniApp.prefix) && miniApp) {
       void miniApp.handleRequest(req, res);
       return;
     }
