@@ -1,8 +1,9 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { API_PATHS } from "@anonymous-chat/shared/api";
-import { isVipProfile, VIP_CONFIG, userId, type UserProfile } from "../../domain/types.js";
+import { isVipProfile, userId, type UserProfile } from "../../domain/types.js";
 import type { PointsRepository, UserRepository } from "../../ports/repositories.js";
+import type { VipPlanRegistry } from "../../application/vip-plans.js";
 import { applyCors, handlePreflight } from "./cors.js";
 
 const DAILY_CHECK_IN_POINTS = 3;
@@ -24,7 +25,8 @@ export class MiniAppServer {
   constructor(
     private readonly users: UserRepository,
     private readonly points: PointsRepository,
-    private readonly options: MiniAppServerOptions
+    private readonly options: MiniAppServerOptions,
+    private readonly vipPlans?: VipPlanRegistry
   ) {}
 
   validateConfiguration(): void {
@@ -49,7 +51,7 @@ export class MiniAppServer {
 
       if (req.method === "GET" && url.pathname === API_PATHS.miniApp.me) {
         if (!profile) return json(res, 409, { error: "Complete onboarding in the bot before using the Mini App." });
-        return json(res, 200, { profile, points: await this.points.balance(identity.userId), vip: isVipProfile(profile), vipCostPoints: VIP_CONFIG.pointsCost, vipDays: VIP_CONFIG.durationDays, vipPaymentMethods: ["points"] });
+        return json(res, 200, { profile, points: await this.points.balance(identity.userId), vip: isVipProfile(profile), vipPlans: this.vipPlans?.plans() ?? [] });
       }
 
       if (!profile) return json(res, 409, { error: "Complete onboarding in the bot before using the Mini App." });
@@ -75,15 +77,18 @@ export class MiniAppServer {
         const body = await readJson(req);
         const key = typeof body?.idempotencyKey === "string" && /^[a-zA-Z0-9-]{8,100}$/.test(body.idempotencyKey)
           ? body.idempotencyKey : undefined;
-        if (!key) return json(res, 400, { error: "A valid purchase key is required." });
-        const result = await this.points.spend(identity.userId, `miniapp-vip:${identity.userId}:${key}`, VIP_CONFIG.pointsCost);
+        const planId = typeof body?.planId === "string" ? body.planId : undefined;
+        const method = typeof body?.method === "string" ? body.method : undefined;
+        if (!key || !planId || !method) return json(res, 400, { error: "A valid purchase key, method, and plan are required." });
+        const result = await this.vipPlans?.purchase(identity.userId, method, planId, `miniapp-vip:${identity.userId}:${method}:${key}`);
         if (result === "insufficient") return json(res, 402, { error: "Not enough points.", points: await this.points.balance(identity.userId) });
-        if (result === "spent") {
-          const base = Math.max(Date.now(), profile.vipUntil ? Date.parse(profile.vipUntil) : 0);
-          await this.users.saveProfile({ ...profile, vipUntil: new Date(base + VIP_CONFIG.durationDays * 86_400_000).toISOString() });
-        }
+        if (result === "unavailable" || !result) return json(res, 404, { error: "VIP plan is unavailable." });
         const refreshed = await this.users.profileFor(identity.userId);
-        return json(res, 200, { purchased: result === "spent", profile: refreshed, points: await this.points.balance(identity.userId) });
+        return json(res, 200, { purchased: result === "purchased", duplicate: result === "duplicate", profile: refreshed, points: await this.points.balance(identity.userId) });
+      }
+
+      if (req.method === "GET" && url.pathname === API_PATHS.miniApp.vipPlans) {
+        return json(res, 200, { plans: this.vipPlans?.plans() ?? [] });
       }
 
       return json(res, 404, { error: "Not found." });

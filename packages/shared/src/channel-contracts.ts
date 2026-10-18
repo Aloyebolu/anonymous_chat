@@ -99,7 +99,8 @@ export type Command =
   | "points"
   | "vip"
   | "end"
-  | "app";
+  | "app"
+  | "settings";
 
 export type InboundEvent =
   | {

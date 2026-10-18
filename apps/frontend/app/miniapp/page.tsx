@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { API_PATHS, LOCAL_API_ORIGIN } from "@anonymous-chat/shared/api";
-import { VIP_CONFIG } from "@anonymous-chat/shared/constants";
 import type { Gender, GenderPreference } from "@anonymous-chat/shared/domain";
-import type { MiniAppProfile as MiniProfile } from "@anonymous-chat/shared/contracts";
+import type { MiniAppProfile as MiniProfile, VipPlan } from "@anonymous-chat/shared/contracts";
 
 interface TelegramMiniApp {
   initData: string;
@@ -36,7 +35,7 @@ const COPY = {
   showName: "Show my name to a match",
   privacy: "Your name stays hidden unless you turn this on.",
   vip: "A little more choice",
-  buyVip: (cost: number) => `Unlock VIP · ${cost} points`,
+  buyVip: (name: string, cost: number) => `${name} · ${cost} points`,
   vipBody: "See your match’s gender, use strict preferences, and change your gender setting.",
   active: "VIP is yours",
   busy: "Loading your profile…",
@@ -244,8 +243,8 @@ function ProfileTab({ profile, busy, updateField, saveProfile }: {
   );
 }
 
-function VipTab({ profile, points, vipCost, busy, buyVip }: {
-  profile: MiniProfile; points: number; vipCost: number; busy: boolean; buyVip: () => void;
+function VipTab({ profile, points, plans, busy, buyVip }: {
+  profile: MiniProfile; points: number; plans: readonly VipPlan[]; busy: boolean; buyVip: (plan: VipPlan) => void;
 }) {
   const active = Boolean(profile.vipUntil && Date.parse(profile.vipUntil) > Date.now());
   return (
@@ -262,9 +261,14 @@ function VipTab({ profile, points, vipCost, busy, buyVip }: {
         {active ? (
           <div className="m-vip-date">✓ Active until {new Date(profile.vipUntil!).toLocaleDateString()}</div>
         ) : (
-          <Button variant="vip" busy={busy} disabled={points < vipCost} onClick={buyVip}>
-            {COPY.buyVip(vipCost)}
-          </Button>
+          <div className="m-vip-plans">
+            {plans.map((plan) => (
+              <Button key={plan.id} variant="vip" busy={busy} disabled={points < plan.amount} onClick={() => buyVip(plan)}>
+                {COPY.buyVip(plan.name, plan.amount)}
+              </Button>
+            ))}
+            {plans.length === 0 && <p className="m-note">No VIP plans are available right now.</p>}
+          </div>
         )}
 
         <div className="m-perks">
@@ -300,7 +304,7 @@ export default function MiniAppPage() {
   const [firstName, setFirstName] = useState("");
   const [profile, setProfile] = useState<MiniProfile | null>(null);
   const [points, setPoints] = useState(0);
-  const [vipCost, setVipCost] = useState<number>(VIP_CONFIG.pointsCost);
+  const [vipPlans, setVipPlans] = useState<VipPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -326,7 +330,7 @@ export default function MiniAppPage() {
       const data = await request(API_PATHS.miniApp.me);
       setProfile(data.profile as MiniProfile);
       setPoints(Number(data.points ?? 0));
-      setVipCost(Number(data.vipCostPoints ?? VIP_CONFIG.pointsCost));
+      setVipPlans(Array.isArray(data.vipPlans) ? data.vipPlans as VipPlan[] : []);
       setError("");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : COPY.error);
@@ -391,10 +395,14 @@ export default function MiniAppPage() {
     finally { setBusy(false); }
   };
 
-  const buyVip = async () => {
+  const buyVip = async (plan: VipPlan) => {
     setBusy(true); setError(""); setNotice("");
     try {
-      const data = await request(API_PATHS.miniApp.vip, "POST", { idempotencyKey: crypto.randomUUID() });
+      const data = await request(API_PATHS.miniApp.vip, "POST", {
+        method: plan.method,
+        planId: plan.id,
+        idempotencyKey: crypto.randomUUID()
+      });
       setProfile(data.profile as MiniProfile);
       setPoints(Number(data.points ?? points));
       setNotice(COPY.active);
@@ -434,7 +442,7 @@ export default function MiniAppPage() {
         <div key={tab} className={`m-content${dir > 0 ? " m-in-right" : " m-in-left"}`}>
           {tab === "home" && <HomeTab points={points} busy={busy} checkIn={() => void checkIn()} />}
           {tab === "profile" && <ProfileTab profile={profile} busy={busy} updateField={updateField} saveProfile={() => void saveProfile()} />}
-          {tab === "vip" && <VipTab profile={profile} points={points} vipCost={vipCost} busy={busy} buyVip={() => void buyVip()} />}
+          {tab === "vip" && <VipTab profile={profile} points={points} plans={vipPlans} busy={busy} buyVip={(plan) => void buyVip(plan)} />}
         </div>
       </div>
 

@@ -8,6 +8,42 @@ export type MiniAppProfile = Pick<
   "showName" | "age" | "language" | "vipUntil"
 >;
 
+export interface VipPlan {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly method: string;
+  readonly currency: string;
+  readonly amount: number;
+  readonly durationDays: number;
+}
+
+export interface ModeratorLiveState {
+  readonly available: boolean;
+  readonly channels: readonly string[];
+  readonly connectedChannels: readonly string[];
+  readonly activeConversationId: string | null;
+  readonly participant?: {
+    readonly userId: string;
+    readonly channel: string;
+    readonly displayName?: string;
+    readonly age?: number;
+    readonly gender: string;
+    readonly country: string;
+    readonly preferredGender: string;
+    readonly preferredCountry?: string;
+  };
+}
+
+export interface AdminLiveUpdate {
+  readonly type: "admin-update";
+  readonly state: AdminState;
+  readonly reports: readonly AdminReport[];
+  readonly reportedUsers: readonly ReportedUserSummary[];
+  readonly moderationEvents: readonly ModerationEventSummary[];
+  readonly watchLogs: Readonly<Record<string, readonly MessageLogEntryDto[]>>;
+}
+
 export interface AdminUser {
   readonly userId: string;
   readonly channel: string;

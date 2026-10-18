@@ -4,7 +4,7 @@ import type { ChannelCapabilities, ChannelDriver, ChannelRecipient, InboundEvent
 import { applyCors, handlePreflight } from "../../http/cors.js";
 import { API_PATHS } from "@anonymous-chat/shared/api";
 
-const COMMANDS = new Set(["start", "find", "next", "leave", "report", "block", "help", "points", "vip", "end", "app"]);
+const COMMANDS = new Set(["start", "find", "next", "leave", "report", "block", "help", "points", "vip", "end", "app", "settings"]);
 
 export interface WebChannelOptions {
   readonly port: number;
@@ -120,7 +120,7 @@ export class WebChannelDriver implements ChannelDriver {
     if (trimmed.startsWith("/") && COMMANDS.has(trimmed.slice(1))) {
       return {
         kind: "command", channel: this.type, identity,
-        command: trimmed.slice(1) as "start" | "find" | "next" | "leave" | "report" | "block" | "help" | "points" | "vip" | "end" | "app",
+        command: trimmed.slice(1) as "start" | "find" | "next" | "leave" | "report" | "block" | "help" | "points" | "vip" | "end" | "app" | "settings",
         timestamp
       };
     }

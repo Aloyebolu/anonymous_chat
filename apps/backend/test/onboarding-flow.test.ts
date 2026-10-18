@@ -58,4 +58,57 @@ describe("onboarding is triggered automatically", () => {
     expect(profile?.preferredGender).toBe("any");
     void app;
   });
+
+  it("lets a completed user update profile settings while in chat", async () => {
+    const { channel, users } = await setup();
+    const identity = await users.findOrCreate({ channel: "fake", externalId: "alice" });
+    await users.saveEligibility({
+      userId: identity.userId,
+      status: "eligible",
+      method: "self-declared-18-plus",
+      verifiedAt: new Date()
+    });
+    await users.saveProfile({
+      userId: identity.userId,
+      gender: "female",
+      country: "Nigeria",
+      preferredGender: "any"
+    });
+
+    await channel.emit({ kind: "command", channel: "fake", identity, command: "settings", timestamp: new Date() });
+    expect(channel.sent.at(-1)?.message.kind).toBe("interaction");
+    await channel.emit({ kind: "action", channel: "fake", identity, actionId: "settings:displayName", timestamp: new Date() });
+    await channel.emit({ kind: "message", channel: "fake", identity, externalMessageId: "m1", content: { kind: "text", text: "A & B" }, timestamp: new Date() });
+    await channel.emit({ kind: "action", channel: "fake", identity, actionId: "settings:age", timestamp: new Date() });
+    await channel.emit({ kind: "message", channel: "fake", identity, externalMessageId: "m2", content: { kind: "text", text: "27" }, timestamp: new Date() });
+
+    expect(await users.profileFor(identity.userId)).toMatchObject({
+      displayName: "A & B",
+      age: 27,
+      country: "Nigeria"
+    });
+  });
+
+  it("requires VIP to change gender in chat settings", async () => {
+    const { channel, users } = await setup();
+    const identity = await users.findOrCreate({ channel: "fake", externalId: "alice" });
+    await users.saveEligibility({
+      userId: identity.userId,
+      status: "eligible",
+      method: "self-declared-18-plus",
+      verifiedAt: new Date()
+    });
+    await users.saveProfile({
+      userId: identity.userId,
+      gender: "female",
+      country: "Nigeria",
+      preferredGender: "any"
+    });
+
+    await channel.emit({ kind: "command", channel: "fake", identity, command: "settings", timestamp: new Date() });
+    await channel.emit({ kind: "action", channel: "fake", identity, actionId: "settings:gender", timestamp: new Date() });
+
+    expect(await users.profileFor(identity.userId)).toMatchObject({ gender: "female" });
+    expect(channel.sent.at(-1)?.message).toMatchObject({ kind: "text", text: expect.stringContaining("VIP feature") });
+  });
 });

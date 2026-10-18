@@ -46,8 +46,10 @@ export class TelegramBotBridgeImpl implements TelegramBotBridge {
             { command: "find", description: "Find a chat" },
             { command: "next", description: "Move to another chat" },
             { command: "end", description: "End your current chat" },
+            { command: "settings", description: "Update your profile" },
             { command: "vip", description: "Explore VIP matching" },
             { command: "app", description: "Open settings and daily rewards" },
+            { command: "settings", description: "Update your chat profile" },
             { command: "points", description: "Check your points" },
             { command: "report", description: "Report a problem" },
             { command: "help", description: "Show help" }

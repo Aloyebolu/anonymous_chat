@@ -48,11 +48,13 @@ export interface Eligibility {
   readonly verifiedAt: Date;
 }
 
-export type OnboardingStep = "awaiting-gender" | "awaiting-country" | "awaiting-preference";
+export type ProfileSettingsField = "displayName" | "age" | "country" | "preferredCountry" | "language";
+export type OnboardingStep = "awaiting-gender" | "awaiting-country" | "awaiting-preference" | "editing-profile";
 
 export interface ProfileDraft {
   readonly userId: UserId;
   readonly step: OnboardingStep;
+  readonly settingsField?: ProfileSettingsField;
   readonly gender?: Gender;
   readonly country?: string;
 }

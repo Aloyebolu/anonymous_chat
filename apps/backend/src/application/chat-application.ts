@@ -1,11 +1,11 @@
 import {
   AI_CHANNEL,
-  VIP_CONFIG,
   isVipProfile,
   type CommunicationIdentity,
   type Conversation,
   type Gender,
   type GenderPreference,
+  type ProfileSettingsField,
   type UserId,
   type UserProfile
 } from "../domain/types.js";
@@ -24,6 +24,7 @@ import type { ModerationEventRepository } from "../ports/moderation-events.js";
 import { escapeHtml } from "@anonymous-chat/shared/rich-text";
 import { AI_PERSONA, MSG } from "./messages.js";
 import { MatchmakingService } from "./matchmaking.js";
+import type { VipPlanRegistry } from "./vip-plans.js";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const RATE_WINDOW_MS = 10_000;
@@ -67,7 +68,9 @@ export class ChatApplication {
     private readonly log: MessageLogRepository,
     private readonly points?: PointsRepository,
     private readonly moderationEvents?: ModerationEventRepository,
-    private readonly miniAppUrl?: string
+    private readonly miniAppUrl?: string,
+    private readonly moderatorConsoleUrl?: string,
+    private readonly vipPlans?: VipPlanRegistry
   ) {}
 
   private readonly recentMessages = new Map<UserId, { at: number; text: string }[]>();
@@ -128,7 +131,19 @@ export class ChatApplication {
           const other = conversation.participants.find((candidate) => candidate.userId !== participant.userId);
           const participantProfile = await this.users.profileFor(participant.userId);
           if (conversation.kind === "operator" && participantProfile?.moderator) {
-            return this.send(participant.identity, { kind: "text", text: MSG.moderatorAssignment });
+            const otherProfile = other ? await this.users.profileFor(other.userId) : undefined;
+            const name = otherProfile?.displayName?.trim() || "Anonymous user";
+            const gender = otherProfile?.gender ?? "Not provided";
+            const age = otherProfile?.age === undefined ? "Not provided" : String(otherProfile.age);
+            const text = MSG.moderatorAssignment(
+              other?.identity.channel ?? "unknown",
+              name,
+              gender,
+              age,
+              this.safeModeratorConsoleUrl()
+            );
+            await this.send(participant.identity, { kind: "text", text });
+            return this.send(participant.identity, { kind: "text", text: MSG.moderatorWelcome });
           }
           const [viewerProfile, otherProfile] = await Promise.all([
             this.users.profileFor(participant.userId),
@@ -153,6 +168,7 @@ export class ChatApplication {
     if (command === "leave" || command === "end") return this.leave(identity);
     if (command === "vip") return this.showVip(identity);
     if (command === "app") return this.openMiniApp(identity);
+    if (command === "settings") return this.showSettings(identity);
     if (command === "report") return this.report(identity);
     if (command === "block") return this.endWithReason(identity, MSG.blocked);
     if (command === "points") {
@@ -178,23 +194,168 @@ export class ChatApplication {
     const profile = await this.users.profileFor(identity.userId);
     if (!profile) return this.send(identity, { kind: "text", text: MSG.vipProfileRequired });
     if (isVipProfile(profile)) return this.send(identity, { kind: "text", text: MSG.vipActive(profile.vipUntil!.slice(0, 10)) });
+    const plans = this.vipPlans?.plans().filter((plan) => plan.method === "points") ?? [];
+    if (plans.length === 0) return this.send(identity, { kind: "text", text: MSG.miniAppUnavailable });
     const balance = await this.points?.balance(identity.userId) ?? 0;
     return this.send(identity, {
       kind: "interaction",
-      text: MSG.vipOffer(balance, VIP_CONFIG.pointsCost),
-      actions: [{ id: "vip:buy", label: MSG.vipBuyLabel(VIP_CONFIG.pointsCost) }]
+      text: MSG.vipOffer(balance),
+      actions: plans.map((plan) => ({
+        id: `vip:buy:${plan.method}:${plan.id}`,
+        label: MSG.vipBuyLabel(plan.name, plan.amount, plan.durationDays)
+      }))
     });
   }
 
-  private async buyVip(identity: CommunicationIdentity): Promise<void> {
+  private async showSettings(identity: CommunicationIdentity): Promise<void> {
     const profile = await this.users.profileFor(identity.userId);
-    if (!profile || !this.points) return this.send(identity, { kind: "text", text: MSG.vipProfileRequired });
-    const purchaseId = `vip:${identity.channel}:${identity.externalId}:${crypto.randomUUID()}`;
-    const result = await this.points.spend(identity.userId, purchaseId, VIP_CONFIG.pointsCost);
+    if (!profile) {
+      await this.send(identity, { kind: "text", text: MSG.profileRequired });
+      return this.resumeOnboarding(identity);
+    }
+    await this.users.clearDraft(identity.userId);
+    const actions = [
+      { id: "settings:displayName", label: `Name · ${profile.displayName || "not set"}` },
+      { id: "settings:age", label: `Age · ${profile.age ?? "not set"}` },
+      { id: "settings:gender", label: `Gender · ${profile.gender}` },
+      { id: "settings:country", label: `Country · ${profile.country}` },
+      { id: "settings:preferredGender", label: `Match with · ${profile.preferredGender}` },
+      { id: "settings:preferredCountry", label: `Preferred country · ${profile.preferredCountry || "any"}` },
+      { id: "settings:language", label: `Language · ${profile.language || "en"}` },
+      { id: "settings:showName", label: profile.showName ? "Hide name from matches" : "Show name to matches" },
+      { id: "settings:done", label: "Done" }
+    ];
+    await this.send(identity, { kind: "interaction", text: MSG.settingsPrompt, actions });
+  }
+
+  private async handleSettingsAction(identity: CommunicationIdentity, actionId: string): Promise<void> {
+    const [, field, value] = actionId.split(":");
+    if (field === "done") {
+      await this.users.clearDraft(identity.userId);
+      return this.send(identity, { kind: "text", text: MSG.settingsSaved });
+    }
+
+    const profile = await this.users.profileFor(identity.userId);
+    if (!profile) return this.send(identity, { kind: "text", text: MSG.profileRequired });
+
+    const textFields: Partial<Record<ProfileSettingsField, string>> = {
+      displayName: MSG.settingsAskDisplayName,
+      age: MSG.settingsAskAge,
+      country: MSG.settingsAskCountry,
+      preferredCountry: MSG.settingsAskPreferredCountry,
+      language: MSG.settingsAskLanguage
+    };
+    if (field && field in textFields) {
+      await this.users.saveDraft({ userId: identity.userId, step: "editing-profile", settingsField: field as ProfileSettingsField });
+      return this.send(identity, { kind: "text", text: textFields[field as ProfileSettingsField]! });
+    }
+
+    if (field === "gender" && !value) {
+      if (!isVipProfile(profile)) return this.send(identity, { kind: "text", text: MSG.settingsGenderVip });
+      return this.send(identity, {
+        kind: "interaction",
+        text: "<b>Choose your gender</b>",
+        actions: [
+          { id: "settings:gender:male", label: "Male" },
+          { id: "settings:gender:female", label: "Female" },
+          { id: "settings:gender:nonbinary", label: "Non-binary" },
+          { id: "settings:done", label: "Cancel" }
+        ]
+      });
+    }
+
+    if (field === "preferredGender" && !value) {
+      return this.send(identity, {
+        kind: "interaction",
+        text: "<b>Who would you like to match with?</b>",
+        actions: [
+          { id: "settings:preferredGender:male", label: "Male" },
+          { id: "settings:preferredGender:female", label: "Female" },
+          { id: "settings:preferredGender:nonbinary", label: "Non-binary" },
+          { id: "settings:preferredGender:any", label: "Any" }
+        ]
+      });
+    }
+
+    if (field === "showName") {
+      await this.users.saveProfile({ ...profile, showName: !profile.showName });
+      return this.showSettings(identity);
+    }
+
+    if ((field === "gender" || field === "preferredGender") &&
+      ["male", "female", "nonbinary", "any"].includes(value ?? "")) {
+      if (field === "gender") {
+        if (!isVipProfile(profile)) return this.send(identity, { kind: "text", text: MSG.settingsGenderVip });
+        await this.users.saveProfile({ ...profile, gender: value as Gender });
+      } else {
+        await this.users.saveProfile({ ...profile, preferredGender: value as GenderPreference });
+      }
+      await this.send(identity, { kind: "text", text: MSG.settingsSaved });
+      return this.showSettings(identity);
+    }
+
+    return this.showSettings(identity);
+  }
+
+  private async updateSettingFromText(identity: CommunicationIdentity, raw: string): Promise<void> {
+    const draft = await this.users.draftFor(identity.userId);
+    const field = draft?.step === "editing-profile" ? draft.settingsField : undefined;
+    const profile = await this.users.profileFor(identity.userId);
+    if (!field || !profile) {
+      await this.users.clearDraft(identity.userId);
+      return;
+    }
+    const value = raw.trim();
+    let update: Partial<UserProfile>;
+    switch (field) {
+      case "displayName":
+        if (value !== "-" && value.length > 28) return void await this.send(identity, { kind: "text", text: MSG.settingsInvalid });
+        update = { displayName: value === "-" ? undefined : value || undefined };
+        break;
+      case "age": {
+        const age = Number(value);
+        if (!/^\d{2}$/.test(value) || !Number.isInteger(age) || age < 18 || age > 99) {
+          return void await this.send(identity, { kind: "text", text: MSG.settingsInvalid });
+        }
+        update = { age };
+        break;
+      }
+      case "country":
+        if (value.length < 2 || value.length > 56) return void await this.send(identity, { kind: "text", text: MSG.settingsInvalid });
+        update = { country: value };
+        break;
+      case "preferredCountry":
+        if (value !== "-" && value.length > 56) return void await this.send(identity, { kind: "text", text: MSG.settingsInvalid });
+        update = { preferredCountry: value === "-" ? undefined : value || undefined };
+        break;
+      case "language":
+        if (!/^[a-z]{2}(?:-[A-Z]{2})?$/.test(value)) return void await this.send(identity, { kind: "text", text: MSG.settingsInvalid });
+        update = { language: value };
+        break;
+    }
+    await this.users.saveProfile({ ...profile, ...update });
+    await this.users.clearDraft(identity.userId);
+    await this.send(identity, { kind: "text", text: MSG.settingsSaved });
+    await this.showSettings(identity);
+  }
+
+  private safeModeratorConsoleUrl(): string | undefined {
+    if (!this.moderatorConsoleUrl) return undefined;
+    try {
+      const url = new URL(this.moderatorConsoleUrl);
+      return url.protocol === "https:" ? url.toString() : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async buyVip(identity: CommunicationIdentity, method: string, planId: string): Promise<void> {
+    if (!this.vipPlans) return this.send(identity, { kind: "text", text: MSG.vipProfileRequired });
+    const purchaseId = `vip:${method}:${identity.channel}:${identity.externalId}:${crypto.randomUUID()}`;
+    const result = await this.vipPlans.purchase(identity.userId, method, planId, purchaseId);
     if (result === "insufficient") return this.send(identity, { kind: "text", text: MSG.vipInsufficient });
-    const base = Math.max(Date.now(), profile.vipUntil ? Date.parse(profile.vipUntil) : 0);
-    const vipUntil = new Date(base + VIP_CONFIG.durationDays * 24 * 60 * 60 * 1000).toISOString();
-    await this.users.saveProfile({ ...profile, vipUntil });
+    if (result === "unavailable") return this.send(identity, { kind: "text", text: MSG.miniAppUnavailable });
+    if (result === "duplicate") return this.send(identity, { kind: "text", text: MSG.vipActive("current") });
     return this.send(identity, { kind: "text", text: MSG.vipPurchased });
   }
 
@@ -210,7 +371,11 @@ export class ChatApplication {
   }
 
   private async handleAction(identity: CommunicationIdentity, actionId: string): Promise<void> {
-    if (actionId === "vip:buy") return this.buyVip(identity);
+    if (actionId.startsWith("vip:buy:")) {
+      const [, , method, planId] = actionId.split(":");
+      if (method && planId) return this.buyVip(identity, method, planId);
+    }
+    if (actionId.startsWith("settings:")) return this.handleSettingsAction(identity, actionId);
     if (actionId === "confirm-adult") {
       await this.users.saveEligibility({
         userId: identity.userId,
@@ -252,6 +417,7 @@ export class ChatApplication {
 
     // Onboarding draft flow runs before the conversation gate.
     const draft = await this.users.draftFor(identity.userId);
+    if (draft?.step === "editing-profile") return this.updateSettingFromText(identity, raw);
     if (draft?.step === "awaiting-country") {
       await this.users.saveDraft({ ...draft, step: "awaiting-preference", country: text.trim() });
       return this.send(identity, {

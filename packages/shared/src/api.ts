@@ -13,19 +13,23 @@ export const API_PATHS = {
     reportedUsers: `${API_PREFIX}/reported-users`,
     operatorLogin: `${API_PREFIX}/operator/login`,
     operatorMatch: `${API_PREFIX}/operator/match`,
-    watch: `${API_PREFIX}/watch`
+    watch: `${API_PREFIX}/watch`,
+    live: `${API_PREFIX}/admin/live`
   },
   moderator: {
     me: `${API_PREFIX}/moderator/me`,
     settings: `${API_PREFIX}/moderator/settings`,
     linkCode: `${API_PREFIX}/moderator/link-code`,
-    shadowBan: `${API_PREFIX}/moderator/shadow-ban`
+    shadowBan: `${API_PREFIX}/moderator/shadow-ban`,
+    participantProfile: `${API_PREFIX}/moderator/participant-profile`,
+    notice: `${API_PREFIX}/moderator/notice`
   },
   miniApp: {
     prefix: `${API_PREFIX}/miniapp`,
     me: `${API_PREFIX}/miniapp/me`,
     dailyCheckIn: `${API_PREFIX}/miniapp/daily-check-in`,
     profile: `${API_PREFIX}/miniapp/profile`,
+    vipPlans: `${API_PREFIX}/miniapp/vip-plans`,
     vip: `${API_PREFIX}/miniapp/vip`
   }
 } as const;

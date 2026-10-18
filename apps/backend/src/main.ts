@@ -1,5 +1,6 @@
 import { ChatApplication } from "./application/chat-application.js";
 import { MATCHMAKING_CONFIG, MatchmakingService } from "./application/matchmaking.js";
+import { PointsVipPlanAdapter, VipPlanRegistry } from "./application/vip-plans.js";
 import { ChannelRegistry } from "./ports/channels.js";
 import { AdminServer } from "./infrastructure/admin/admin-server.js";
 import { HttpAiService } from "./infrastructure/ai/http-ai-service.js";
@@ -75,6 +76,8 @@ async function main(): Promise<void> {
   const queue = new PostgresMatchQueueRepository(db);
   const reports = new PostgresReportRepository(db);
   const points = new PostgresPointsRepository(db);
+  const vipPlans = new VipPlanRegistry();
+  vipPlans.register(new PointsVipPlanAdapter(points, users));
   const moderationEvents = new PostgresModerationEventRepository(db);
   const log = new InMemoryMessageLogRepository();
 
@@ -92,9 +95,11 @@ async function main(): Promise<void> {
 
   // ---- Application ---------------------------------------------------------
   const matching = new MatchmakingService(users, queue, conversations, MATCHMAKING_CONFIG);
+  const moderatorConsoleUrl = process.env.MODERATOR_CONSOLE_URL ??
+    (process.env.TELEGRAM_MINI_APP_URL ? `${new URL(process.env.TELEGRAM_MINI_APP_URL).origin}/moderator` : undefined);
   const app = new ChatApplication(
     users, conversations, registry, matching, moderation, ai, reports, log, points, moderationEvents,
-    process.env.TELEGRAM_MINI_APP_URL
+    process.env.TELEGRAM_MINI_APP_URL, moderatorConsoleUrl, vipPlans
   );
 
   // The single receive callback every driver funnels into.
@@ -108,7 +113,7 @@ async function main(): Promise<void> {
 
   let miniApp: MiniAppServer | undefined;
   if (TELEGRAM_TOKEN && (!IS_DEVELOPMENT || TELEGRAM_ENABLED)) {
-    miniApp = new MiniAppServer(users, points, { botToken: TELEGRAM_TOKEN });
+    miniApp = new MiniAppServer(users, points, { botToken: TELEGRAM_TOKEN }, vipPlans);
     miniApp.validateConfiguration();
   }
 

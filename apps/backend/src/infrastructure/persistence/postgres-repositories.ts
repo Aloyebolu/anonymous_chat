@@ -261,8 +261,8 @@ export class PostgresPointsRepository implements PointsRepository {
   constructor(private readonly db: PostgresDatabase) {}
 
   async balance(id: UserId): Promise<number> {
-    const result = await this.db.query<{ balance: string | null }>(
-      "SELECT COALESCE(SUM(points), 0)::text AS balance FROM point_events WHERE user_id = $1",
+    const result = await this.db.query<{ balance: string }>(
+      "SELECT balance::text AS balance FROM point_balances WHERE user_id = $1",
       [id]
     );
     return Number(result.rows[0]?.balance ?? 0);
@@ -299,6 +299,11 @@ export class PostgresPointsRepository implements PointsRepository {
         "INSERT INTO point_events (id, event_id, user_id, created_at, points) VALUES ($1, $2, $3, $4, $5)",
         [crypto.randomUUID(), eventId, id, at, grantedPoints]
       );
+      await client.query(
+        `INSERT INTO point_balances (user_id, balance) VALUES ($1, $2)
+         ON CONFLICT (user_id) DO UPDATE SET balance = point_balances.balance + EXCLUDED.balance`,
+        [id, grantedPoints]
+      );
       return grantedPoints;
     });
   }
@@ -311,15 +316,20 @@ export class PostgresPointsRepository implements PointsRepository {
       const existing = await client.query("SELECT 1 FROM point_events WHERE event_id = $1", [eventId]);
       if (existing.rowCount) return "duplicate";
 
-      const balance = await client.query<{ total: string }>(
-        "SELECT COALESCE(SUM(points), 0)::text AS total FROM point_events WHERE user_id = $1",
+      const balance = await client.query<{ balance: string }>(
+        "SELECT balance::text AS balance FROM point_balances WHERE user_id = $1",
         [id]
       );
-      if (Number(balance.rows[0]?.total ?? 0) < points) return "insufficient";
+      if (Number(balance.rows[0]?.balance ?? 0) < points) return "insufficient";
 
       await client.query(
         "INSERT INTO point_events (id, event_id, user_id, created_at, points) VALUES ($1, $2, $3, $4, $5)",
         [crypto.randomUUID(), eventId, id, at, -points]
+      );
+      await client.query(
+        `INSERT INTO point_balances (user_id, balance) VALUES ($1, $2)
+         ON CONFLICT (user_id) DO UPDATE SET balance = point_balances.balance + EXCLUDED.balance`,
+        [id, -points]
       );
       return "spent";
     });

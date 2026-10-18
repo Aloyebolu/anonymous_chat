@@ -1,7 +1,7 @@
 import { userId, type ChannelType, type CommunicationIdentity } from "../../../domain/types.js";
 import type { InboundEvent } from "../../../ports/channels.js";
 
-type Command = "start" | "find" | "next" | "leave" | "report" | "block" | "help" | "points" | "vip" | "end" | "app";
+type Command = "start" | "find" | "next" | "leave" | "report" | "block" | "help" | "points" | "vip" | "end" | "app" | "settings";
 
 const COMMANDS: Record<string, Command> = {
   "/start": "start",
@@ -14,7 +14,8 @@ const COMMANDS: Record<string, Command> = {
   "/points": "points",
   "/vip": "vip",
   "/end": "end",
-  "/app": "app"
+  "/app": "app",
+  "/settings": "settings"
 };
 
 interface BaileysMessageShape {
