@@ -24,6 +24,25 @@ export default function HomePage() {
     void send({ actionId: action.id });
   }, [appendOutbound, send]);
 
+  const sendMedia = useCallback(async (media: {
+    kind: "image" | "video" | "audio" | "voice" | "document";
+    mimeType: string;
+    filename: string;
+    base64: string;
+  }) => {
+    if (!user) return;
+    appendOutbound({
+      kind: "media",
+      media: {
+        kind: media.kind,
+        mimeType: media.mimeType,
+        filename: media.filename,
+        url: `data:${media.mimeType};base64,${media.base64}`
+      }
+    });
+    await send({ media });
+  }, [appendOutbound, send, user]);
+
   return (
     <div className="chat-shell">
       <header className="chat-header">
@@ -32,7 +51,7 @@ export default function HomePage() {
       <ChatLog entries={entries} onCommand={sendText} onAction={sendAction} />
       <CommandPalette onCommand={sendText} />
       <p className="muted" style={{ padding: "0 12px 8px" }}>{STRINGS.headerTip}</p>
-      <Composer onSend={sendText} />
+      <Composer onSend={sendText} onSendMedia={sendMedia} />
     </div>
   );
 }

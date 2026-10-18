@@ -102,14 +102,17 @@ async function main(): Promise<void> {
     process.env.TELEGRAM_MINI_APP_URL, moderatorConsoleUrl, vipPlans
   );
 
-  // The single receive callback every driver funnels into.
-  const receive = (event: Parameters<ChatApplication["receive"]>[0]) => app.receive(event);
-
   const admin = new AdminServer(
     { users, queue, conversations, reports, log, matching, moderationEvents },
     { matchmaking: MATCHMAKING_CONFIG, authToken: ADMIN_TOKEN }
   );
   admin.validateConfiguration();
+
+  // The single receive callback every driver funnels into.
+  const receive = async (event: Parameters<ChatApplication["receive"]>[0]) => {
+    await app.receive(event);
+    await admin.publishLiveUpdates().catch((error) => console.error("[admin] Live update publish failed.", error));
+  };
 
   let miniApp: MiniAppServer | undefined;
   if (TELEGRAM_TOKEN && (!IS_DEVELOPMENT || TELEGRAM_ENABLED)) {
@@ -126,6 +129,7 @@ async function main(): Promise<void> {
     }
     void admin.handleRequest(req, res);
   });
+  admin.attachWebSocket(web.httpServer);
 
   // ---- Telegram ------------------------------------------------------------
   let telegram: TelegramChannelDriver | undefined;
@@ -163,8 +167,11 @@ async function main(): Promise<void> {
 
   // ---- Matchmaking sweep ---------------------------------------------------
   await app.runMatchmakingSweep();
+  await admin.publishLiveUpdates();
   const sweepTimer = setInterval(() => {
-    void app.runMatchmakingSweep().catch((error) => console.error("[sweep] Failed.", error));
+    void app.runMatchmakingSweep()
+      .then(() => admin.publishLiveUpdates())
+      .catch((error) => console.error("[sweep] Failed.", error));
   }, SWEEP_INTERVAL_MS);
 
   // ---- Shutdown ------------------------------------------------------------
@@ -178,6 +185,7 @@ async function main(): Promise<void> {
     await Promise.allSettled([
       whatsapp?.stop(),
       telegram?.stop(),
+      admin.close(),
       web.stop(),
       db.close(),
     ]);

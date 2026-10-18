@@ -1,5 +1,6 @@
 import { userId, type ChannelType, type CommunicationIdentity } from "../../../domain/types.js";
 import type { InboundEvent } from "../../../ports/channels.js";
+import type { MediaPayload } from "../../../ports/channels.js";
 
 type Command = "start" | "find" | "next" | "leave" | "report" | "block" | "help" | "points" | "vip" | "end" | "app" | "settings";
 
@@ -27,6 +28,11 @@ interface BaileysMessageShape {
   readonly message?: {
     readonly conversation?: string;
     readonly extendedTextMessage?: { readonly text?: string };
+    readonly imageMessage?: { readonly mimetype?: string; readonly fileLength?: number | bigint; readonly caption?: string };
+    readonly videoMessage?: { readonly mimetype?: string; readonly fileLength?: number | bigint; readonly seconds?: number };
+    readonly audioMessage?: { readonly mimetype?: string; readonly fileLength?: number | bigint; readonly seconds?: number; readonly ptt?: boolean };
+    readonly documentMessage?: { readonly mimetype?: string; readonly fileLength?: number | bigint; readonly fileName?: string };
+    readonly stickerMessage?: { readonly mimetype?: string; readonly fileLength?: number | bigint };
     readonly buttonsResponseMessage?: { readonly selectedButtonId?: string };
     readonly listResponseMessage?: { readonly singleSelectReply?: { readonly selectedRowId?: string } };
     readonly templateButtonReplyMessage?: { readonly selectedId?: string };
@@ -62,6 +68,32 @@ const extractActionId = (message: BaileysMessageShape["message"]): string | unde
   return undefined;
 };
 
+const asSize = (value: number | bigint | undefined): number | undefined =>
+  value === undefined ? undefined : Number(value);
+
+const extractMedia = (message: BaileysMessageShape): MediaPayload | undefined => {
+  const payload = message.message;
+  const channelRef = message.key?.id;
+  if (!payload || !channelRef) return undefined;
+  if (payload.imageMessage) {
+    return { kind: "image", channelRef, mimeType: payload.imageMessage.mimetype, sizeBytes: asSize(payload.imageMessage.fileLength) };
+  }
+  if (payload.videoMessage) {
+    return { kind: "video", channelRef, mimeType: payload.videoMessage.mimetype, durationSec: payload.videoMessage.seconds, sizeBytes: asSize(payload.videoMessage.fileLength) };
+  }
+  if (payload.audioMessage) {
+    const kind = payload.audioMessage.ptt ? "voice" : "audio";
+    return { kind, channelRef, mimeType: payload.audioMessage.mimetype, durationSec: payload.audioMessage.seconds, sizeBytes: asSize(payload.audioMessage.fileLength) };
+  }
+  if (payload.documentMessage) {
+    return { kind: "document", channelRef, mimeType: payload.documentMessage.mimetype, filename: payload.documentMessage.fileName, sizeBytes: asSize(payload.documentMessage.fileLength) };
+  }
+  if (payload.stickerMessage) {
+    return { kind: "sticker", channelRef, mimeType: payload.stickerMessage.mimetype, sizeBytes: asSize(payload.stickerMessage.fileLength) };
+  }
+  return undefined;
+};
+
 export const mapBaileysInbound = (raw: unknown): InboundEvent | undefined => {
   const message = raw as BaileysMessageShape;
   if (!message?.key?.remoteJid || !message.key.id) return undefined;
@@ -73,6 +105,18 @@ export const mapBaileysInbound = (raw: unknown): InboundEvent | undefined => {
 
   const actionId = extractActionId(message.message);
   if (actionId) return { kind: "action", channel, identity, actionId, timestamp };
+
+  const media = extractMedia(message);
+  if (media) {
+    return {
+      kind: "message",
+      channel,
+      identity,
+      externalMessageId: message.key.id,
+      content: { kind: "media", media },
+      timestamp
+    };
+  }
 
   const text = extractText(message.message);
   if (text === undefined) return undefined;

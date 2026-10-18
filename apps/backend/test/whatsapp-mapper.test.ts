@@ -25,6 +25,25 @@ describe("Baileys inbound mapper", () => {
     expect(event?.kind).toBe("message");
   });
 
+  it("maps an incoming WhatsApp image for later media resolution", () => {
+    const event = mapBaileysInbound({
+      key: { remoteJid: "1234@s.whatsapp.net", fromMe: false, id: "image-message" },
+      message: { imageMessage: { mimetype: "image/jpeg", fileLength: 512n } },
+      messageTimestamp: 1700000000
+    });
+    expect(event?.kind).toBe("message");
+    if (event?.kind === "message" && event.content.kind === "media") {
+      expect(event.content.media).toMatchObject({
+        kind: "image",
+        channelRef: "image-message",
+        mimeType: "image/jpeg",
+        sizeBytes: 512
+      });
+    } else {
+      throw new Error("Expected inbound image media.");
+    }
+  });
+
   it("maps slash commands", () => {
     const event = mapBaileysInbound({
       key: { remoteJid: "1234@s.whatsapp.net", fromMe: false, id: "abc" },

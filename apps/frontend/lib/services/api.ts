@@ -7,6 +7,12 @@ export interface SendPayload {
   readonly user: string;
   readonly text?: string;
   readonly actionId?: string;
+  readonly media?: {
+    readonly kind: "image" | "video" | "audio" | "voice" | "document";
+    readonly mimeType: string;
+    readonly filename: string;
+    readonly base64: string;
+  };
 }
 
 export const sendInbound = async (payload: SendPayload): Promise<void> => {

@@ -11,6 +11,24 @@ type ModeratorState = {
   channels: string[];
   connectedChannels: string[];
   activeConversationId: string | null;
+  participant?: {
+    userId: string;
+    channel: string;
+    displayName?: string;
+    age?: number;
+    gender: string;
+    country: string;
+    preferredGender: string;
+    preferredCountry?: string;
+  };
+};
+type ParticipantDraft = {
+  displayName: string;
+  age: string;
+  gender: string;
+  country: string;
+  preferredGender: string;
+  preferredCountry: string;
 };
 const WebIcon = () => (
   <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -58,6 +76,7 @@ export default function ModeratorPage() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [participantDraft, setParticipantDraft] = useState<ParticipantDraft | null>(null);
 
   const request = useCallback(async (path: string, init: RequestInit = {}) => {
     const response = await fetch(`${API}${path}`, {
@@ -82,6 +101,14 @@ export default function ModeratorPage() {
       setState(data);
       setChannels(data.channels);
       setAvailable(data.available);
+      setParticipantDraft(data.participant ? {
+        displayName: data.participant.displayName ?? "",
+        age: data.participant.age === undefined ? "" : String(data.participant.age),
+        gender: data.participant.gender,
+        country: data.participant.country,
+        preferredGender: data.participant.preferredGender,
+        preferredCountry: data.participant.preferredCountry ?? ""
+      } : null);
       setError("");
       window.sessionStorage.setItem("moderatorToken", token);
     } catch (reason) {
@@ -99,6 +126,38 @@ export default function ModeratorPage() {
   useEffect(() => {
     if (token) void refresh();
   }, [token, refresh]);
+
+  useEffect(() => {
+    if (!token || !API) return;
+    const url = new URL(API_PATHS.admin.live, API);
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    url.searchParams.set("token", token);
+    const socket = new WebSocket(url);
+    socket.onmessage = (event) => {
+      let data: { type?: string; userId?: string; state?: ModeratorState };
+      try {
+        data = JSON.parse(event.data) as typeof data;
+      } catch (reason) {
+        console.error("Could not parse moderator live update.", reason);
+        return;
+      }
+      if (data.type !== "moderator-update" || !data.state) return;
+      const nextState = data.state;
+      setState((current) => ({ ...nextState, userId: data.userId ?? current?.userId ?? "" }));
+      setChannels(nextState.channels);
+      setAvailable(nextState.available);
+      setParticipantDraft(nextState.participant ? {
+        displayName: nextState.participant.displayName ?? "",
+        age: nextState.participant.age === undefined ? "" : String(nextState.participant.age),
+        gender: nextState.participant.gender,
+        country: nextState.participant.country,
+        preferredGender: nextState.participant.preferredGender,
+        preferredCountry: nextState.participant.preferredCountry ?? ""
+      } : null);
+    };
+    socket.onerror = () => setError("Live updates disconnected; refresh the moderator page to reconnect.");
+    return () => socket.close();
+  }, [token]);
 
   const save = async (nextAvailable = available, nextChannels = channels) => {
     setBusy(true);
@@ -138,6 +197,42 @@ export default function ModeratorPage() {
       setBanId("");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not update account");
+    }
+  };
+
+  const saveParticipantProfile = async () => {
+    if (!state?.participant || !participantDraft) return;
+    const age = participantDraft.age.trim();
+    try {
+      await request(API_PATHS.moderator.participantProfile, {
+        method: "PATCH",
+        body: JSON.stringify({
+          userId: state.participant.userId,
+          displayName: participantDraft.displayName,
+          ...(age ? { age: Number(age) } : {}),
+          gender: participantDraft.gender,
+          country: participantDraft.country,
+          preferredGender: participantDraft.preferredGender,
+          preferredCountry: participantDraft.preferredCountry
+        })
+      });
+      setNotice("Participant profile updated.");
+      await refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not update participant profile");
+    }
+  };
+
+  const sendModeratorNotice = async (template: "welcome" | "kindness" | "safety") => {
+    if (!state?.participant) return;
+    try {
+      await request(API_PATHS.moderator.notice, {
+        method: "POST",
+        body: JSON.stringify({ userId: state.participant.userId, template })
+      });
+      setNotice("Formatted support message sent.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not send support message");
     }
   };
 
@@ -250,6 +345,62 @@ export default function ModeratorPage() {
                 </span>
               </div>
             </section>
+
+            {state.activeConversationId && state.participant && participantDraft && (
+              <section className="mod-card">
+                <div className="mod-card-head">
+                  <span className="mod-card-icon">✨</span>
+                  <div>
+                    <h2>Participant care tools</h2>
+                    <p>These moderator actions are available only for your active support conversation.</p>
+                  </div>
+                </div>
+                <div className="mod-participant-summary">
+                  <b>{state.participant.displayName || "Anonymous participant"}</b>
+                  <span>{state.participant.channel} · {state.participant.age ?? "Age not set"} · {state.participant.gender}</span>
+                </div>
+                <label className="mod-field">
+                  <span className="mod-field-label">Display name</span>
+                  <input value={participantDraft.displayName} onChange={(event) => setParticipantDraft({ ...participantDraft, displayName: event.target.value })} maxLength={28} />
+                </label>
+                <div className="mod-profile-grid">
+                  <label className="mod-field">
+                    <span className="mod-field-label">Age</span>
+                    <input type="number" min={18} max={99} value={participantDraft.age} onChange={(event) => setParticipantDraft({ ...participantDraft, age: event.target.value })} />
+                  </label>
+                  <label className="mod-field">
+                    <span className="mod-field-label">Gender</span>
+                    <select value={participantDraft.gender} onChange={(event) => setParticipantDraft({ ...participantDraft, gender: event.target.value })}>
+                      <option value="male">Male</option><option value="female">Female</option><option value="nonbinary">Non-binary</option>
+                    </select>
+                  </label>
+                </div>
+                <label className="mod-field">
+                  <span className="mod-field-label">Country</span>
+                  <input value={participantDraft.country} onChange={(event) => setParticipantDraft({ ...participantDraft, country: event.target.value })} maxLength={56} />
+                </label>
+                <div className="mod-profile-grid">
+                  <label className="mod-field">
+                    <span className="mod-field-label">Match preference</span>
+                    <select value={participantDraft.preferredGender} onChange={(event) => setParticipantDraft({ ...participantDraft, preferredGender: event.target.value })}>
+                      <option value="male">Male</option><option value="female">Female</option><option value="nonbinary">Non-binary</option><option value="any">Any</option>
+                    </select>
+                  </label>
+                  <label className="mod-field">
+                    <span className="mod-field-label">Preferred country</span>
+                    <input value={participantDraft.preferredCountry} onChange={(event) => setParticipantDraft({ ...participantDraft, preferredCountry: event.target.value })} maxLength={56} />
+                  </label>
+                </div>
+                <button type="button" className="mod-btn mod-btn-primary mod-btn-block" onClick={() => void saveParticipantProfile()}>
+                  Save participant profile
+                </button>
+                <div className="mod-actions">
+                  <button type="button" className="mod-btn mod-btn-ghost" onClick={() => void sendModeratorNotice("welcome")}>Send welcome</button>
+                  <button type="button" className="mod-btn mod-btn-ghost" onClick={() => void sendModeratorNotice("kindness")}>Send kindness note</button>
+                  <button type="button" className="mod-btn mod-btn-ghost" onClick={() => void sendModeratorNotice("safety")}>Send safety note</button>
+                </div>
+              </section>
+            )}
 
             <section className="mod-card">
               <div className="mod-card-head">
@@ -413,6 +564,12 @@ const CSS_TEXT = `
   transition:border-color .2s ease,box-shadow .2s ease,background .2s ease}
 .mod-field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(167,139,250,.18)}
 .mod-field input::placeholder{color:var(--text-faint)}
+.mod-field select{width:100%;height:46px;padding:0 14px;border-radius:13px;font-size:14px;font-family:inherit;
+  background:var(--surface-2);border:1px solid var(--border);color:var(--text);outline:none}
+.mod-profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mod-participant-summary{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border-radius:14px;
+  background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.2)}
+.mod-participant-summary span{font-size:12px;color:var(--text-dim);text-transform:capitalize}
 .mod-token-row{display:flex;gap:8px;align-items:center}
 .mod-token-row input{flex:1}
 .mod-btn{border:0;border-radius:13px;padding:12px 18px;font-size:14px;font-weight:700;cursor:pointer;

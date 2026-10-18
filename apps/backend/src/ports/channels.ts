@@ -26,11 +26,12 @@ export type { OutboundInvoice, OutboundInteraction, OutboundMedia, OutboundText 
 export interface ChannelDriver {
   readonly type: ChannelType;
   readonly capabilities: ChannelCapabilities;
+  readonly acceptsNativeMediaRefs?: boolean;
 
   start(onEvent: (event: InboundEvent) => Promise<void>): Promise<void>;
   stop(): Promise<void>;
 
-  sendMessage(recipient: ChannelRecipient, message: OutboundMessage): Promise<void>;
+  sendMessage(recipient: ChannelRecipient, message: OutboundMessage): Promise<string | undefined>;
   sendTyping?(recipient: ChannelRecipient): Promise<void>;
   editMessage?(recipient: ChannelRecipient, externalMessageId: string, message: OutboundMessage): Promise<void>;
   deleteMessage?(recipient: ChannelRecipient, externalMessageId: string): Promise<void>;

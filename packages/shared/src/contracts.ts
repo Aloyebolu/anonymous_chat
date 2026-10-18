@@ -1,7 +1,10 @@
 import type { OutboundMessage } from "./channel-contracts.js";
 import type { UserProfile } from "./domain.js";
 
-export type WebOutboundMessage = Extract<OutboundMessage, { readonly kind: "text" | "interaction" }>;
+export type WebOutboundMessage = Extract<OutboundMessage, { readonly kind: "text" | "interaction" | "media" }>;
+export type WebStreamEvent =
+  | (WebOutboundMessage & { readonly messageId: string })
+  | { readonly kind: "delete"; readonly messageId: string };
 export type MiniAppProfile = Pick<
   UserProfile,
   "gender" | "country" | "preferredGender" | "preferredCountry" | "displayName" |

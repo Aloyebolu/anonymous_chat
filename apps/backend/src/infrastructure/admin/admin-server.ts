@@ -57,7 +57,9 @@ export class AdminServer {
         webSocketServer.emit("connection", webSocket, request);
       });
     });
-    webSocketServer.on("connection", (socket) => this.authenticateLiveSocket(socket));
+    webSocketServer.on("connection", (socket, request) => {
+      void this.authenticateLiveSocket(socket, request);
+    });
   }
 
   async publishLiveUpdates(): Promise<void> {
@@ -70,7 +72,7 @@ export class AdminServer {
     await Promise.all(moderators.map(async (client) => {
       if (client.role.type !== "moderator") return;
       const state = await this.buildModeratorState(client.role.userId);
-      this.sendSocket(client.socket, { type: "moderator-update", state });
+      this.sendSocket(client.socket, { type: "moderator-update", userId: client.role.userId, state });
     }));
   }
 
@@ -431,8 +433,8 @@ export class AdminServer {
     };
   }
 
-  private async authenticateLiveSocket(socket: WebSocket): Promise<void> {
-    const url = new URL(socket.url ?? "ws://localhost", "http://localhost");
+  private async authenticateLiveSocket(socket: WebSocket, request: IncomingMessage): Promise<void> {
+    const url = new URL(request.url ?? "/", "http://localhost");
     const token = url.searchParams.get("token") ?? undefined;
     const moderatorId = token ? await this.moderatorForToken(token) : undefined;
     const isAdmin = token === this.options.authToken || (!this.options.authToken && !token);
@@ -449,6 +451,15 @@ export class AdminServer {
     socket.on("close", () => this.liveSockets.delete(client));
     socket.on("error", () => this.liveSockets.delete(client));
     this.sendSocket(socket, { type: "connected", role: client.role.type });
+    if (client.role.type === "moderator") {
+      this.sendSocket(socket, {
+        type: "moderator-update",
+        userId: client.role.userId,
+        state: await this.buildModeratorState(client.role.userId)
+      });
+    } else {
+      this.sendSocket(socket, await this.buildLiveUpdate());
+    }
   }
 
   private async buildLiveUpdate(): Promise<AdminLiveUpdate> {

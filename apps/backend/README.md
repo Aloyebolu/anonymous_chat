@@ -157,6 +157,14 @@ Telegram bot's Mini App domain in BotFather, deploy both services behind HTTPS,
 then send `/app` to the bot. The backend verifies Telegram `initData` and rejects
 expired or invalid signatures before loading or changing account data.
 
+The web chat accepts images, video, audio, and documents up to 5 MB and renders
+forwarded attachments inline when the browser supports the format. Telegram and
+WhatsApp adapters translate supported media types to their native send APIs;
+WhatsApp inbound media is downloaded from the original Baileys message when a
+forward requires portable bytes.
+Adapters expose message deletion where their transport supports it; the settings
+interaction uses deletion to replace the previous menu instead of stacking prompts.
+
 Users can edit their display name, name visibility, age, country, language, and
 match preferences. They can earn 3 points for a daily check-in and a one-time
 5-point profile-completion reward, in addition to chat points. VIP costs 100
@@ -188,6 +196,11 @@ the normal connected-chat message; the moderator gets a support-assignment
 message on their selected channel. If no moderator is available, the regular
 queue and AI fallback continue to work. The AI path remains explicit that the
 partner is an assistant.
+
+While assigned, the moderator console shows the active participant and exposes
+moderator-only profile editing plus formatted welcome, kindness, and safety notes.
+The profile endpoint only permits edits to the participant in that moderator's
+active support conversation.
 
 ## Where WhatsApp credentials live
 

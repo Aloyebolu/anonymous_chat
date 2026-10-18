@@ -14,6 +14,12 @@ export interface MessageBubbleProps {
 type RichTag = "b" | "strong" | "i" | "em" | "u" | "ins" | "s" | "strike" | "del" | "code" | "pre" | "blockquote" | "p" | "ul" | "ol" | "li" | "a" | "br";
 type RichNode = { readonly text: string } | { readonly tag: RichTag; readonly href?: string; readonly children: RichNode[] };
 const ALLOWED_TAGS = new Set<RichTag>(["b", "strong", "i", "em", "u", "ins", "s", "strike", "del", "code", "pre", "blockquote", "p", "ul", "ol", "li", "a", "br"]);
+const safeMediaUrl = (url?: string): string | undefined => {
+  if (!url) return undefined;
+  if (/^https?:\/\//i.test(url)) return url;
+  if (/^data:(?:(?:image|video|audio)\/[\w.+-]+|application\/(?:pdf|octet-stream));base64,/i.test(url)) return url;
+  return undefined;
+};
 
 const decodeEntities = (text: string): string => text.replace(
   /&(#x[0-9a-f]+|#\d+|amp|apos|gt|lt|nbsp|quot);/gi,
@@ -94,7 +100,19 @@ const renderRichNodes = (nodes: readonly RichNode[], onCommand: (cmd: string) =>
 
 export const MessageBubble = ({ message, role, onCommand, onAction }: MessageBubbleProps) => (
   <div className={`msg ${role === "outbound" ? "out" : ""}`}>
-    {message.format === "html"
+    {message.kind === "media" ? (
+      <div className="chat-media">
+        {(message.media.kind === "image" || message.media.kind === "sticker") && safeMediaUrl(message.media.url) && <img className="chat-media-preview" src={safeMediaUrl(message.media.url)} alt={message.caption || (message.media.kind === "sticker" ? "Shared sticker" : "Shared image")} />}
+        {message.media.kind === "video" && safeMediaUrl(message.media.url) && <video className="chat-media-preview" controls src={safeMediaUrl(message.media.url)} />}
+        {(message.media.kind === "audio" || message.media.kind === "voice") && safeMediaUrl(message.media.url) && <audio className="chat-media-audio" controls src={safeMediaUrl(message.media.url)} />}
+        {message.media.kind === "document" && (
+          safeMediaUrl(message.media.url)
+            ? <a className="chat-media-document" href={safeMediaUrl(message.media.url)} download={message.media.filename} target="_blank" rel="noreferrer">{message.media.filename || "Open attachment"}</a>
+            : <span>{message.media.filename || "Attachment unavailable"}</span>
+        )}
+        {message.caption && <p>{message.caption}</p>}
+      </div>
+    ) : message.format === "html"
       ? renderRichNodes(parseRichText(message.text), onCommand)
       : renderPlainText(message.text, onCommand, "plain")}
     {message.kind === "interaction" && <InteractionButtons actions={message.actions} onPick={onAction} />}

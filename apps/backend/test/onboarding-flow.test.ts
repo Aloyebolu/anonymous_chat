@@ -87,6 +87,7 @@ describe("onboarding is triggered automatically", () => {
       age: 27,
       country: "Nigeria"
     });
+    expect(channel.deleted.length).toBeGreaterThanOrEqual(2);
   });
 
   it("requires VIP to change gender in chat settings", async () => {

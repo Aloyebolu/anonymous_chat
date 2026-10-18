@@ -74,6 +74,7 @@ export class ChatApplication {
   ) {}
 
   private readonly recentMessages = new Map<UserId, { at: number; text: string }[]>();
+  private readonly settingsMessageIds = new Map<string, string>();
 
   // ─── Inbound dispatch ───────────────────────────────────────────────────
 
@@ -225,10 +226,11 @@ export class ChatApplication {
       { id: "settings:showName", label: profile.showName ? "Hide name from matches" : "Show name to matches" },
       { id: "settings:done", label: "Done" }
     ];
-    await this.send(identity, { kind: "interaction", text: MSG.settingsPrompt, actions });
+    await this.sendSettingsInteraction(identity, { kind: "interaction", text: MSG.settingsPrompt, actions });
   }
 
   private async handleSettingsAction(identity: CommunicationIdentity, actionId: string): Promise<void> {
+    await this.deleteSettingsMessage(identity);
     const [, field, value] = actionId.split(":");
     if (field === "done") {
       await this.users.clearDraft(identity.userId);
@@ -252,7 +254,7 @@ export class ChatApplication {
 
     if (field === "gender" && !value) {
       if (!isVipProfile(profile)) return this.send(identity, { kind: "text", text: MSG.settingsGenderVip });
-      return this.send(identity, {
+      return this.sendSettingsInteraction(identity, {
         kind: "interaction",
         text: "<b>Choose your gender</b>",
         actions: [
@@ -265,7 +267,7 @@ export class ChatApplication {
     }
 
     if (field === "preferredGender" && !value) {
-      return this.send(identity, {
+      return this.sendSettingsInteraction(identity, {
         kind: "interaction",
         text: "<b>Who would you like to match with?</b>",
         actions: [
@@ -543,13 +545,21 @@ private async handleMedia(identity: CommunicationIdentity, media: MediaPayload):
     return this.send(identity, { kind: "text", text: MSG.mediaUnsupportedByPartner });
   }
 
-  // Same channel → channelRef passthrough is free and instant.
-  // Cross-channel → resolve to url/bytes via the origin driver.
+  // Reuse native references only when the destination adapter supports them;
+  // otherwise materialize the source as bytes or a URL, even within one channel.
   let outgoing = media;
-  if (identity.channel !== partner.identity.channel) {
+  if (
+    identity.channel !== partner.identity.channel ||
+    (!media.url && !media.bytes && !targetDriver.acceptsNativeMediaRefs)
+  ) {
     const sourceDriver = this.channels.driverFor(identity.channel);
     if (sourceDriver.resolveMedia) {
-      outgoing = await sourceDriver.resolveMedia(media);
+      try {
+        outgoing = await sourceDriver.resolveMedia(media);
+      } catch (error) {
+        console.warn(`[chat] Could not resolve incoming ${media.kind} from ${identity.channel}.`, error);
+        return this.send(identity, { kind: "text", text: MSG.mediaUnsupportedByPartner });
+      }
     }
     if (!outgoing.url && !outgoing.bytes) {
       // Origin driver couldn't materialize it — don't send a broken payload.
@@ -736,10 +746,41 @@ private async handleMedia(identity: CommunicationIdentity, media: MediaPayload):
   // ─── Outbound ───────────────────────────────────────────────────────────
 
   private async send(identity: CommunicationIdentity, message: OutboundMessage): Promise<void> {
+    await this.sendTracked(identity, message);
+  }
+
+  private async sendTracked(identity: CommunicationIdentity, message: OutboundMessage): Promise<string | undefined> {
     const richMessage = message.kind === "text" || message.kind === "interaction"
       ? { ...message, format: "html" as const }
       : message;
-    await this.channels.driverFor(identity.channel).sendMessage(recipient(identity), richMessage);
+    return this.channels.driverFor(identity.channel).sendMessage(recipient(identity), richMessage);
+  }
+
+  private settingsKey(identity: CommunicationIdentity): string {
+    return `${identity.channel}:${identity.externalId}`;
+  }
+
+  private async deleteSettingsMessage(identity: CommunicationIdentity): Promise<void> {
+    const key = this.settingsKey(identity);
+    const messageId = this.settingsMessageIds.get(key);
+    this.settingsMessageIds.delete(key);
+    const driver = this.channels.driverFor(identity.channel);
+    if (messageId && driver.capabilities.messageDeletion && driver.deleteMessage) {
+      try {
+        await driver.deleteMessage(recipient(identity), messageId);
+      } catch (error) {
+        console.warn(`[chat] Could not delete prior settings prompt on ${identity.channel}.`, error);
+      }
+    }
+  }
+
+  private async sendSettingsInteraction(
+    identity: CommunicationIdentity,
+    message: Extract<OutboundMessage, { readonly kind: "interaction" }>
+  ): Promise<void> {
+    await this.deleteSettingsMessage(identity);
+    const messageId = await this.sendTracked(identity, message);
+    if (messageId) this.settingsMessageIds.set(this.settingsKey(identity), messageId);
   }
 }
 

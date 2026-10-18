@@ -17,16 +17,19 @@ export type BridgeMedia =
   | { type: "audio"; url: string; mimeType?: string; ptt?: boolean }
   | { type: "audio"; data: Uint8Array; mimeType?: string; ptt?: boolean }
   | { type: "document"; url: string; filename?: string; mimeType?: string; caption?: string }
-  | { type: "document"; data: Uint8Array; filename?: string; mimeType?: string; caption?: string };
+  | { type: "document"; data: Uint8Array; filename?: string; mimeType?: string; caption?: string }
+  | { type: "sticker"; url: string }
+  | { type: "sticker"; data: Uint8Array };
 
 export interface BaileysSocketBridge {
   connect(): Promise<void>;
   onMessage(handler: (raw: unknown) => void): void;
-  sendText(jid: string, text: string): Promise<void>;
+  sendText(jid: string, text: string): Promise<string | undefined>;
   /** Media is passed already normalized to `BridgeMedia`. */
-  sendMedia?(jid: string, media: BridgeMedia): Promise<void>;
+  sendMedia?(jid: string, media: BridgeMedia): Promise<string | undefined>;
   sendTyping?(jid: string): Promise<void>;
-  sendButtons?(jid: string, text: string, actions: readonly { id: string; label: string }[]): Promise<void>;
+  sendButtons?(jid: string, text: string, actions: readonly { id: string; label: string }[]): Promise<string | undefined>;
+  deleteMessage?(jid: string, messageId: string): Promise<void>;
   /** Optional — used for cross-channel forwards. Returns url/bytes or the input unchanged. */
   resolveMedia?(media: MediaPayload): Promise<MediaPayload>;
   close(): Promise<void>;
@@ -48,7 +51,7 @@ export class WhatsAppChannelDriver implements ChannelDriver {
       menus: false,
       menuLayouts: [],
       messageEditing: false,
-      messageDeletion: false,
+      messageDeletion: true,
       typingIndicator: true,
       media: ["image", "video", "audio", "document", "voice" , "sticker"],
       payments: [],
@@ -76,6 +79,11 @@ export class WhatsAppChannelDriver implements ChannelDriver {
     await this.socket.sendTyping(recipient.externalId);
   }
 
+  async deleteMessage(recipient: ChannelRecipient, externalMessageId: string): Promise<void> {
+    if (!this.socket.deleteMessage) throw new Error("WhatsApp bridge does not implement message deletion.");
+    await this.socket.deleteMessage(recipient.externalId, externalMessageId);
+  }
+
   /**
    * Cross-channel forwarding hook. WhatsApp inbound media arrives from Baileys
    * as a downloadable message object, not a URL — resolving it properly requires
@@ -89,7 +97,7 @@ export class WhatsAppChannelDriver implements ChannelDriver {
     return this.socket.resolveMedia(media);
   }
 
-  async sendMessage(recipient: ChannelRecipient, message: OutboundMessage): Promise<void> {
+  async sendMessage(recipient: ChannelRecipient, message: OutboundMessage): Promise<string | undefined> {
     if (message.kind === "text") {
       const text = message.format === "html" ? htmlToPlainText(message.text) : message.text;
       return this.socket.sendText(recipient.externalId, text);
@@ -111,20 +119,21 @@ export class WhatsAppChannelDriver implements ChannelDriver {
     }
 
     console.warn(`[whatsapp] Dropping unsupported outbound kind: ${message.kind}`);
+    return undefined;
   }
 
   private async sendMedia(
     recipient: ChannelRecipient,
     message: Extract<OutboundMessage, { kind: "media" }>
-  ): Promise<void> {
+  ): Promise<string | undefined> {
     if (!this.socket.sendMedia) {
       console.warn("[whatsapp] Bridge does not implement sendMedia; dropping media message");
-      return;
+      return undefined;
     }
 
     if (!this.capabilities.media.includes(message.media.kind)) {
       console.warn(`[whatsapp] Unsupported media type: ${message.media.kind}`);
-      return;
+      return undefined;
     }
 
     // Cross-channel media that never got resolved will have only `channelRef`.
@@ -134,11 +143,11 @@ export class WhatsAppChannelDriver implements ChannelDriver {
       console.warn(
         `[whatsapp] Dropping media with no url/bytes (kind: ${message.media.kind}, channelRef: ${message.media.channelRef ?? "none"})`
       );
-      return;
+      return undefined;
     }
 
     const bridgeMedia = this.toBridgeMedia(message);
-    await this.socket.sendMedia(recipient.externalId, bridgeMedia);
+    return this.socket.sendMedia(recipient.externalId, bridgeMedia);
   }
 
   private toBridgeMedia(
@@ -184,9 +193,7 @@ export class WhatsAppChannelDriver implements ChannelDriver {
         };
 
       case "sticker":
-        // Baileys can send stickers via `{ sticker: ... }`, but the BridgeMedia
-        // union doesn't model it yet. Add a variant when you need it.
-        throw new Error("[whatsapp] Sticker sending is not implemented in BridgeMedia.");
+        return { type: "sticker", ...source };
 
       case "location":
         throw new Error("[whatsapp] Location is not a BridgeMedia — handle separately.");

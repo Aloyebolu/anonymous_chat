@@ -81,9 +81,10 @@ export class TelegramBotBridgeImpl implements TelegramBotBridge {
         }
     }
 
-    async sendText(chatId: string, text: string, format?: "html"): Promise<void> {
+    async sendText(chatId: string, text: string, format?: "html"): Promise<string | undefined> {
         if (!this.bot) throw new Error("Telegram bot is not connected.");
-        await this.bot.telegram.sendMessage(chatId, text, format === "html" ? { parse_mode: "HTML" } : undefined);
+        const sent = await this.bot.telegram.sendMessage(chatId, text, format === "html" ? { parse_mode: "HTML" } : undefined);
+        return String(sent.message_id);
     }
 
     async sendTyping(chatId: string): Promise<void> {
@@ -96,7 +97,7 @@ export class TelegramBotBridgeImpl implements TelegramBotBridge {
         }
     }
 
-    async sendMedia(chatId: string, media: MediaPayload, caption?: string): Promise<void> {
+    async sendMedia(chatId: string, media: MediaPayload, caption?: string): Promise<string | undefined> {
         if (!this.bot) throw new Error("Telegram bot is not connected.");
 
         // Telegram accepts file_id, URL, or a stream as the "source" argument.
@@ -108,17 +109,17 @@ export class TelegramBotBridgeImpl implements TelegramBotBridge {
 
         switch (media.kind) {
             case "image":
-                return void (await this.bot.telegram.sendPhoto(chatId, source as never, opts));
+                return String((await this.bot.telegram.sendPhoto(chatId, source as never, opts)).message_id);
             case "video":
-                return void (await this.bot.telegram.sendVideo(chatId, source as never, opts));
+                return String((await this.bot.telegram.sendVideo(chatId, source as never, opts)).message_id);
             case "voice":
-                return void (await this.bot.telegram.sendVoice(chatId, source as never, opts));
+                return String((await this.bot.telegram.sendVoice(chatId, source as never, opts)).message_id);
             case "audio":
-                return void (await this.bot.telegram.sendAudio(chatId, source as never, opts));
+                return String((await this.bot.telegram.sendAudio(chatId, source as never, opts)).message_id);
             case "document":
-                return void (await this.bot.telegram.sendDocument(chatId, source as never, opts));
+                return String((await this.bot.telegram.sendDocument(chatId, source as never, opts)).message_id);
             case "sticker":
-                return void (await this.bot.telegram.sendSticker(chatId, source as never));
+                return String((await this.bot.telegram.sendSticker(chatId, source as never)).message_id);
             case "location":
                 // Location has a different shape — see note below.
                 throw new Error("Location is not a MediaPayload; handle separately.");
@@ -140,9 +141,9 @@ export class TelegramBotBridgeImpl implements TelegramBotBridge {
         text: string,
         actions: readonly { id: string; label: string; url?: string }[],
         format?: "html"
-    ): Promise<void> {
+    ): Promise<string | undefined> {
         if (!this.bot) throw new Error("Telegram bot is not connected.");
-        await this.bot.telegram.sendMessage(chatId, text, {
+        const sent = await this.bot.telegram.sendMessage(chatId, text, {
             reply_markup: {
                 inline_keyboard: [actions.map((action) => action.url
                     ? ({ text: action.label, web_app: { url: action.url } })
@@ -150,6 +151,16 @@ export class TelegramBotBridgeImpl implements TelegramBotBridge {
             },
             ...(format === "html" ? { parse_mode: "HTML" as const } : {})
         });
+        return String(sent.message_id);
+    }
+
+    async deleteMessage(chatId: string, messageId: string): Promise<void> {
+        if (!this.bot) throw new Error("Telegram bot is not connected.");
+        const parsedMessageId = Number(messageId);
+        if (!Number.isSafeInteger(parsedMessageId) || parsedMessageId <= 0) {
+            throw new Error("Invalid Telegram message ID.");
+        }
+        await this.bot.telegram.deleteMessage(chatId, parsedMessageId);
     }
 
     async close(): Promise<void> {

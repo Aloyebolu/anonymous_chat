@@ -61,6 +61,58 @@ describe("web channel driver", () => {
     }
   });
 
+  it("maps an uploaded web attachment into a media message event", async () => {
+    const driver = new WebChannelDriver({ port: 0 });
+    const received: InboundEvent[] = [];
+    await driver.start(async (event) => { received.push(event); });
+    try {
+      const res = await fetch(`${baseUrl(driver)}/api/send`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          user: "alice",
+          media: { kind: "image", mimeType: "image/png", filename: "photo.png", base64: "AQID" }
+        })
+      });
+      expect(res.status).toBe(204);
+      expect(received[0].kind).toBe("message");
+      if (received[0].kind === "message" && received[0].content.kind === "media") {
+        expect(received[0].content.media).toMatchObject({ kind: "image", mimeType: "image/png", filename: "photo.png" });
+        expect([...received[0].content.media.bytes!]).toEqual([1, 2, 3]);
+      } else {
+        throw new Error("Expected a media message event.");
+      }
+    } finally {
+      await driver.stop();
+    }
+  });
+
+  it("streams outbound media and message deletion events", async () => {
+    const driver = new WebChannelDriver({ port: 0 });
+    await driver.start(async () => {});
+    const response = await fetch(`${baseUrl(driver)}/api/stream?user=alice`);
+    const reader = response.body!.getReader();
+    try {
+      await reader.read();
+      const messageId = await driver.sendMessage(
+        { channel: "web", externalId: "alice" },
+        { kind: "media", media: { kind: "image", bytes: new Uint8Array([1, 2, 3]), mimeType: "image/png" } }
+      );
+      expect(messageId).toBeTruthy();
+      const mediaFrame = new TextDecoder().decode((await reader.read()).value);
+      expect(mediaFrame).toContain(`"messageId":"${messageId}"`);
+      expect(mediaFrame).toContain("data:image/png;base64,AQID");
+
+      await driver.deleteMessage({ channel: "web", externalId: "alice" }, messageId!);
+      const deleteFrame = new TextDecoder().decode((await reader.read()).value);
+      expect(deleteFrame).toContain('"kind":"delete"');
+      expect(deleteFrame).toContain(`"messageId":"${messageId}"`);
+    } finally {
+      await reader.cancel();
+      await driver.stop();
+    }
+  });
+
   it("rejects requests without user or payload", async () => {
     const driver = new WebChannelDriver({ port: 0 });
     await driver.start(async () => {});

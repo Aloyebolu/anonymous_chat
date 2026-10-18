@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { WhatsAppChannelDriver, type BaileysSocketBridge } from "../src/infrastructure/channels/whatsapp/whatsapp-channel-driver.js";
+import { WhatsAppChannelDriver, type BaileysSocketBridge, type BridgeMedia } from "../src/infrastructure/channels/whatsapp/whatsapp-channel-driver.js";
 import { mapBaileysInbound } from "../src/infrastructure/channels/whatsapp/baileys-mapper.js";
 import type { InboundEvent } from "../src/ports/channels.js";
 
 class FakeSocket implements BaileysSocketBridge {
   readonly sent: { jid: string; text: string }[] = [];
+  deleted: { jid: string; messageId: string } | undefined;
+  mediaSent: { jid: string; media: BridgeMedia } | undefined;
   private handler?: (raw: unknown) => void;
   async connect(): Promise<void> {}
   onMessage(handler: (raw: unknown) => void): void { this.handler = handler; }
-  async sendText(jid: string, text: string): Promise<void> { this.sent.push({ jid, text }); }
+  async sendText(jid: string, text: string): Promise<string | undefined> { this.sent.push({ jid, text }); return "wa-message-id"; }
+  async sendMedia(jid: string, media: BridgeMedia): Promise<string | undefined> { this.mediaSent = { jid, media }; return "wa-media-id"; }
+  async deleteMessage(jid: string, messageId: string): Promise<void> { this.deleted = { jid, messageId }; }
   async close(): Promise<void> {}
   emit(raw: unknown): void { this.handler?.(raw); }
 }
@@ -20,6 +24,27 @@ describe("WhatsApp channel driver", () => {
     await driver.start(async () => {});
     await driver.sendMessage({ channel: "whatsapp", externalId: "a@s.whatsapp.net" }, { kind: "text", text: "hi" });
     expect(socket.sent).toEqual([{ jid: "a@s.whatsapp.net", text: "hi" }]);
+  });
+
+  it("deletes a previously sent message through Baileys", async () => {
+    const socket = new FakeSocket();
+    const driver = new WhatsAppChannelDriver(socket, mapBaileysInbound);
+    await driver.deleteMessage({ channel: "whatsapp", externalId: "a@s.whatsapp.net" }, "wa-message-id");
+    expect(socket.deleted).toEqual({ jid: "a@s.whatsapp.net", messageId: "wa-message-id" });
+  });
+
+  it("sends stickers without throwing through the WhatsApp bridge", async () => {
+    const socket = new FakeSocket();
+    const driver = new WhatsAppChannelDriver(socket, mapBaileysInbound);
+    const messageId = await driver.sendMessage(
+      { channel: "whatsapp", externalId: "a@s.whatsapp.net" },
+      { kind: "media", media: { kind: "sticker", bytes: new Uint8Array([1, 2, 3]), mimeType: "image/webp" } }
+    );
+    expect(messageId).toBe("wa-media-id");
+    expect(socket.mediaSent).toMatchObject({
+      jid: "a@s.whatsapp.net",
+      media: { type: "sticker", data: new Uint8Array([1, 2, 3]) }
+    });
   });
 
   it("converts HTML-formatted text to readable plain text", async () => {

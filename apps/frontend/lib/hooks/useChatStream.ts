@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { openStream } from "../services/stream";
-import type { WebOutboundMessage as OutboundMessage } from "@anonymous-chat/shared/contracts";
+import type { WebOutboundMessage as OutboundMessage, WebStreamEvent } from "@anonymous-chat/shared/contracts";
 
 export interface ChatEntry {
   readonly id: string;
@@ -16,9 +16,17 @@ export const useChatStream = (user: string) => {
   useEffect(() => {
     setEntries([]);
     if (!user) return;
-    const handle = openStream(user, (message) => {
+    const handle = openStream(user, (event) => {
+      if (event.kind === "delete") {
+        setEntries((prev) => prev.filter((entry) => entry.id !== event.messageId));
+        return;
+      }
       counter.current += 1;
-      setEntries((prev) => [...prev, { id: `in-${counter.current}`, role: "inbound", message }]);
+      setEntries((prev) => [...prev, {
+        id: event.messageId,
+        role: "inbound",
+        message: event
+      }]);
     });
     return () => handle.close();
   }, [user]);
