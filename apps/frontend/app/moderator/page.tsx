@@ -1,6 +1,6 @@
 "use client";
-
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { API_PATHS } from "@anonymous-chat/shared/api";
 
 const API = process.env.NEXT_PUBLIC_ADMIN_API;
@@ -12,17 +12,38 @@ type ModeratorState = {
   connectedChannels: string[];
   activeConversationId: string | null;
 };
+const WebIcon = () => (
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M3 12h18" />
+    <path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18" />
+  </svg>
+);
 
-const CHANNEL_META: Record<string, { label: string; icon: string; tint: string }> = {
-  web: { label: "Web chat", icon: "🌐", tint: "#22d3ee" },
-  whatsapp: { label: "WhatsApp", icon: "💬", tint: "#25d366" },
-  telegram: { label: "Telegram", icon: "✈️", tint: "#2aabee" }
+const WhatsAppIcon = () => (
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
+    <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm0 18.15h-.01a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.19 8.19 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24 2.2 0 4.27.86 5.83 2.42a8.19 8.19 0 0 1 2.41 5.83c0 4.54-3.7 8.23-8.24 8.23Zm4.52-6.16c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.16.25-.64.8-.79.97-.14.16-.29.18-.54.06-.25-.12-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.15-.25-.02-.38.11-.51.11-.11.25-.29.37-.44.13-.14.17-.25.25-.41.08-.17.04-.31-.02-.44-.06-.12-.56-1.34-.76-1.84-.2-.48-.4-.42-.56-.43h-.48c-.16 0-.43.06-.66.31-.23.25-.86.85-.86 2.07 0 1.22.89 2.4 1.01 2.56.12.17 1.75 2.67 4.23 3.74.59.26 1.05.41 1.41.52.59.19 1.13.16 1.56.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.14-1.18-.06-.11-.22-.17-.47-.29Z" />
+  </svg>
+);
+
+const TelegramIcon = () => (
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
+    <path d="M21.94 4.3 18.6 20.05c-.25 1.11-.91 1.38-1.84.86l-5.09-3.75-2.46 2.36c-.27.27-.5.5-1.02.5l.36-5.18 9.43-8.52c.41-.36-.09-.56-.63-.2L6.7 12.68 1.68 11.1c-1.09-.34-1.11-1.09.23-1.62L20.5 2.26c.91-.34 1.71.2 1.44 2.04Z" />
+  </svg>
+);
+
+type ChannelMeta = { label: string; icon: ReactNode; tint: string };
+
+const CHANNEL_META: Record<string, ChannelMeta> = {
+  web: { label: "Web chat", icon: <WebIcon />, tint: "#22d3ee" },
+  whatsapp: { label: "WhatsApp", icon: <WhatsAppIcon />, tint: "#25d366" },
+  telegram: { label: "Telegram", icon: <TelegramIcon />, tint: "#2aabee" }
 };
 
-function channelMeta(channel: string) {
+function channelMeta(channel: string): ChannelMeta {
   return CHANNEL_META[channel.toLowerCase()] ?? {
     label: channel.charAt(0).toUpperCase() + channel.slice(1),
-    icon: "🔗",
+    icon: <WebIcon />,
     tint: "#a78bfa"
   };
 }
@@ -246,10 +267,10 @@ export default function ModeratorPage() {
                     const meta = channelMeta(channel);
                     const checked = channels.includes(channel);
                     return (
-                      <label key={channel} className={`mod-channel${checked ? " mod-channel-on" : ""}`}>
-                        <span className="mod-channel-icon" style={{ background: `${meta.tint}22`, borderColor: `${meta.tint}55` }}>
+                      <label key={channel} className={`mod-channel${checked ? " mod-channel-on" : ""}`}><span className="mod-channel-icon" style={{ background: `${meta.tint}22`, borderColor: `${meta.tint}55`, color: meta.tint }}>
                           {meta.icon}
                         </span>
+
                         <span className="mod-channel-info">
                           <b>{meta.label}</b>
                           <small>{channel}</small>

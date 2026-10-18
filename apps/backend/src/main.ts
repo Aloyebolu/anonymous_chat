@@ -57,7 +57,16 @@ async function main(): Promise<void> {
     if (process.env.ENABLE_WHATSAPP === "1") console.warn("Development mode: connecting to the real WhatsApp account because ENABLE_WHATSAPP=1.");
   }
   // ---- Persistence ---------------------------------------------------------
-  const pool = new Pool({ connectionString: DATABASE_URL });
+  const pool = process.env.DATABASE_URL ? new Pool({ connectionString: DATABASE_URL }) : new Pool({
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : 6543,
+    database: process.env.DB_NAME,
+    ssl: {
+      rejectUnauthorized: false // Required for Supabase pooler connections
+    }
+  });
   pool.on("error", (error) => console.error("[database] Unexpected PostgreSQL pool error.", error));
   await applyMigrations(pool);
   const db = new PostgresDatabase(pool);
@@ -116,7 +125,7 @@ async function main(): Promise<void> {
   // ---- Telegram ------------------------------------------------------------
   let telegram: TelegramChannelDriver | undefined;
   if (TELEGRAM_ENABLED) {
-    const token = TELEGRAM_TOKEN ;
+    const token = TELEGRAM_TOKEN;
     if (!token) {
       console.error("TELEGRAM_BOT_TOKEN is not set. Disabling Telegram.");
     } else {
