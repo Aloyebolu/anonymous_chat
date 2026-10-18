@@ -7,7 +7,8 @@ import { UserTable } from "@/components/admin/UserTable";
 import { WatchPanel } from "@/components/admin/WatchPanel";
 import { STRINGS } from "@/lib/constants";
 import { useAdminState } from "@/lib/hooks/useAdminState";
-import { createOperatorSession, fetchModerationEvents, fetchReportedUsers, operatorMatch, readAdminToken, setModerator, setShadowBan, unwatchConversation, watchConversation, writeAdminToken, type ModerationEventSummary, type ReportedUserSummary } from "@/lib/services/admin";
+import type { ModerationEventSummary, ReportedUserSummary } from "@anonymous-chat/shared/contracts";
+import { createOperatorSession, fetchModerationEvents, fetchReportedUsers, operatorMatch, readAdminToken, setModerator, setShadowBan, unwatchConversation, watchConversation, writeAdminToken } from "@/lib/services/admin";
 
 export default function AdminPage() {
   const { state, reports, refresh } = useAdminState();

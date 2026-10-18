@@ -18,7 +18,7 @@ generic channel port
    ↓
 channel adapters (web, whatsapp)
    ↓
-infrastructure (baileys, http, json db)
+infrastructure (baileys, http, postgres)
 ```
 
 Rules that stay true across all phases:
@@ -78,7 +78,7 @@ Rules that stay true across all phases:
   size via `MatchmakingService.aiThresholdMs`.
 - Moderation: `RegexModerationService` blocks phone, email, URL, handle,
   obfuscated variants.
-- Reports: `JsonReportRepository`, admin `/api/reports`.
+- Reports: PostgreSQL-backed reports, admin `/api/reports`.
 - Live watch: `InMemoryMessageLogRepository`, opt-in per conversation, cleared
   on unwatch. Off by default for privacy.
 - Operator match: `MatchmakingService.forceOperatorMatch`, admin
@@ -87,8 +87,8 @@ Rules that stay true across all phases:
   availability and channel selection, temporary cross-channel identity linking,
   automatic support assignment before AI fallback, and moderator shadow-ban
   controls.
-- Persistence: `JsonDatabase` + JSON-backed user / queue / conversation / report
-  repositories.
+- Persistence: PostgreSQL-backed user / queue / conversation / report / points /
+  moderation-event repositories, with SQL schema migrations.
 - Admin HTTP server with `/api/state`, `/api/reports`, `/api/watch`,
   `/api/operator/match`. CORS applied.
 - Next.js UI in `ui/`:
@@ -111,7 +111,8 @@ Rules that stay true across all phases:
 - Admin and moderation APIs support role grants/revocation, manual matches,
   shadow-ban controls, and moderator availability. Add an audit log for manual
   moderation actions before expanding moderator privileges.
-- Persistence: JSON file. Single-process only, no locking across processes.
+- Persistence: PostgreSQL. Point-ledger writes and moderator identity claims use
+  transactions and database locks; message logs remain in-memory.
 
 ### Not started
 
@@ -119,11 +120,10 @@ Rules that stay true across all phases:
   surface open for Telegram Stars and card providers).
 - Point-history UI, additional point-earning activities, and reward redemption.
 - Deployment hardening for the Mini App, including HTTPS origins, BotFather
-  setup, and production persistence/monitoring.
+  setup, PostgreSQL backups, and production monitoring.
 - Fine-grained permission audit trail and session/device management.
 - Deployment (Docker, reverse proxy, TLS, process manager).
 - Structured logging, metrics, error reporting.
-- Postgres.
 - Image / voice / attachment support on either channel.
 - Group chats.
 
@@ -141,10 +141,9 @@ These keep the project honest and small:
    in `MSG` / `STRINGS`.
 3. **The admin can see everything, but the user's privacy is the default.**
    Live watch is opt-in per conversation, and the message log is in-memory.
-4. **No fake abstractions.** A port exists only when there are (or will be
-   within one milestone) two implementations. `AiService` qualifies because
-   stub and HTTP both exist. `ReportRepository` qualifies because in-memory and
-   JSON both exist.
+4. **No fake abstractions.** Keep ports at core/infrastructure boundaries;
+   application tests use in-memory implementations where useful, while
+   production persistence uses PostgreSQL.
 5. **Nothing in the domain layer knows about HTTP, sockets, JSON files, or
    Baileys.**
 
@@ -238,15 +237,12 @@ The goal is: if 50 people used this tomorrow, nothing embarrassing happens.
 - On startup, run one immediate `sweep()` so users who were queued during a
   restart don't wait an extra tick.
 
-### 2.5 Persistence sanity
+### 2.5 Persistence sanity (PostgreSQL and migrations done)
 
-- `JsonDatabase.mutate` currently rewrites the whole file on every change. Fine
-  for a handful of users, not for hundreds. Add:
-  - an explicit `WAL`-style append log for high-frequency writes (queue
-    add/remove, message log)
-  - a compaction step on startup
-- This is not Postgres. It's a stopgap so we can go to 100 users before
-  migrating.
+- Application state is stored in PostgreSQL, with versioned SQL schema
+  migrations and startup migration application.
+- Point-ledger operations and moderator identity claims use transactions and
+  database locks. Message logs remain in-memory.
 
 Deliverables for Phase 2:
 
@@ -254,7 +250,7 @@ Deliverables for Phase 2:
 - Reported users view + shadow-ban (basic controls done).
 - Admin token auth.
 - Startup sweep + graceful shutdown.
-- Append-log persistence.
+- PostgreSQL repositories and SQL migration runner.
 
 ---
 
@@ -282,9 +278,9 @@ The goal is: someone other than the author can run it, watch it, and fix it.
 
 ### 3.3 Backups
 
-- `.data/db.json` and `.data/whatsapp-auth/` are the only state.
-- Cron-style daily copy to a second directory + optional S3-compatible target.
-- Restore is "stop, replace, start".
+- PostgreSQL and `.data/whatsapp-auth/` contain persistent state.
+- Back up PostgreSQL and WhatsApp auth to a second location or S3-compatible target.
+- Restore from a database backup and the matching auth state.
 
 ### 3.4 Reliability checks
 
@@ -337,19 +333,10 @@ stays a small system.
 - This is genuinely the only place where a light statistical model is
   justified. Do not build a recommender before Phase 1 and 2 are done.
 
-### 4.4 Postgres migration
-
-- New implementations of `UserRepository`, `MatchQueueRepository`,
-  `ConversationRepository`, `ReportRepository` against Postgres.
-- One-line change in `main.ts` to pick the Postgres impl when
-  `DATABASE_URL` is set.
-- The domain and application layers do not change.
-
 Deliverables for Phase 4:
 
 - Stripe integration (or a fake provider for testing).
 - Real AI service.
-- Postgres repositories.
 - Optional: outcome-based scoring term.
 
 ---
@@ -387,7 +374,6 @@ boolean in the config object it belongs to:
 - Do not add Kubernetes.
 - Do not add a GraphQL layer.
 - Do not add a second admin UI.
-- Do not replace JSON persistence with Postgres before Phase 4.
 - Do not write abstractions for a use case that doesn't exist yet.
 
 ---

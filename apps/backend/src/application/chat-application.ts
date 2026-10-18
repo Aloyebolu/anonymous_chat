@@ -21,7 +21,7 @@ import type { AiService } from "../ports/ai.js";
 import type { ModerationService } from "../ports/moderation.js";
 import type { MessageLogRepository, ReportRepository } from "../ports/reports.js";
 import type { ModerationEventRepository } from "../ports/moderation-events.js";
-import { AI_PERSONA, MSG } from "./messages.js";
+import { AI_PERSONA, escapeHtml, MSG } from "./messages.js";
 import { MatchmakingService } from "./matchmaking.js";
 
 const MAX_MESSAGE_LENGTH = 4000;
@@ -330,10 +330,10 @@ export class ChatApplication {
         timestamp: new Date(),
         direction: "outbound"
       });
-      return this.send(identity, { kind: "text", text: reply });
+      return this.send(identity, { kind: "text", text: escapeHtml(reply) });
     }
 
-    await this.send(partner.identity, { kind: "text", text });
+    await this.send(partner.identity, { kind: "text", text: escapeHtml(text) });
   }
 
   private inspectSpam(userId: UserId, text: string): { reason: string; score: number } | undefined {
@@ -497,7 +497,7 @@ private async handleMedia(identity: CommunicationIdentity, media: MediaPayload):
       );
       if (!ownMatch) await this.send(identity, { kind: "text", text: MSG.matchWaiting });
     } catch (error) {
-      const text = error instanceof Error ? error.message : MSG.unableToMatch;
+      const text = error instanceof Error ? escapeHtml(error.message) : MSG.unableToMatch;
       await this.send(identity, { kind: "text", text });
     }
   }
@@ -569,7 +569,10 @@ private async handleMedia(identity: CommunicationIdentity, media: MediaPayload):
   // ─── Outbound ───────────────────────────────────────────────────────────
 
   private async send(identity: CommunicationIdentity, message: OutboundMessage): Promise<void> {
-    await this.channels.driverFor(identity.channel).sendMessage(recipient(identity), message);
+    const richMessage = message.kind === "text" || message.kind === "interaction"
+      ? { ...message, format: "html" as const }
+      : message;
+    await this.channels.driverFor(identity.channel).sendMessage(recipient(identity), richMessage);
   }
 }
 

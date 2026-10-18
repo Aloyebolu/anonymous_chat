@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { STRINGS } from "../constants";
 import { fetchReports, fetchState } from "../services/admin";
-import type { AdminReport, AdminState } from "../types";
+import type { AdminReport, AdminState } from "@anonymous-chat/shared/contracts";
 
 export const useAdminState = () => {
   const [state, setState] = useState<AdminState | null>(null);

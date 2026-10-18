@@ -1,20 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-
-type Gender = "male" | "female" | "nonbinary";
-type GenderPreference = Gender | "any";
-interface MiniProfile {
-  gender: Gender;
-  country: string;
-  preferredGender: GenderPreference;
-  preferredCountry?: string;
-  displayName?: string;
-  showName?: boolean;
-  age?: number;
-  language?: string;
-  vipUntil?: string;
-}
+import { VIP_CONFIG } from "@anonymous-chat/shared/constants";
+import type { Gender, GenderPreference } from "@anonymous-chat/shared/domain";
+import type { MiniAppProfile as MiniProfile } from "@anonymous-chat/shared/contracts";
 interface TelegramMiniApp {
   initData: string;
   initDataUnsafe?: { user?: { first_name?: string } };
@@ -65,7 +54,7 @@ export default function MiniAppPage() {
   const [firstName, setFirstName] = useState("");
   const [profile, setProfile] = useState<MiniProfile | null>(null);
   const [points, setPoints] = useState(0);
-  const [vipCost, setVipCost] = useState(100);
+  const [vipCost, setVipCost] = useState<number>(VIP_CONFIG.pointsCost);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -89,7 +78,7 @@ export default function MiniAppPage() {
       const data = await request("/api/miniapp/me");
       setProfile(data.profile as MiniProfile);
       setPoints(Number(data.points ?? 0));
-      setVipCost(Number(data.vipCostPoints ?? 100));
+      setVipCost(Number(data.vipCostPoints ?? VIP_CONFIG.pointsCost));
       setError("");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : COPY.error);

@@ -7,16 +7,20 @@
     "build": "tsc --noEmit",
     "test": "vitest run",
     "dev": "tsx src/main.ts",
-    "start": "tsx src/start-production.ts"
+    "start": "tsx src/start-production.ts",
+    "db:migrate": "tsx src/infrastructure/persistence/migrate.ts"
   },
   "dependencies": {
+    "@anonymous-chat/shared": "file:../../packages/shared",
     "baileys": "^6.7.9",
     "dotenv": "^18.0.8",
+    "pg": "^8.23.1",
     "qrcode-terminal": "^0.12.0",
     "telegraf": "^4.16.3"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "@types/pg": "^8.23.1",
     "@types/qrcode-terminal": "^0.12.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",

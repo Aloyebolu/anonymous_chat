@@ -6,6 +6,7 @@ import type {
   MediaPayload,
   OutboundMessage
 } from "../../../ports/channels.js";
+import { htmlToPlainText } from "../html-text.js";
 
 /** Media payload the bridge can send, discriminated by `type`. */
 export type BridgeMedia =
@@ -90,7 +91,8 @@ export class WhatsAppChannelDriver implements ChannelDriver {
 
   async sendMessage(recipient: ChannelRecipient, message: OutboundMessage): Promise<void> {
     if (message.kind === "text") {
-      return this.socket.sendText(recipient.externalId, message.text);
+      const text = message.format === "html" ? htmlToPlainText(message.text) : message.text;
+      return this.socket.sendText(recipient.externalId, text);
     }
 
     if (message.kind === "media") {
@@ -99,11 +101,13 @@ export class WhatsAppChannelDriver implements ChannelDriver {
 
     if (message.kind === "interaction") {
       if (this.socket.sendButtons && this.capabilities.buttons) {
-        return this.socket.sendButtons(recipient.externalId, message.text, message.actions);
+        const text = message.format === "html" ? htmlToPlainText(message.text) : message.text;
+        return this.socket.sendButtons(recipient.externalId, text, message.actions);
       }
       this.pendingActions.set(recipient.externalId, message.actions);
+      const text = message.format === "html" ? htmlToPlainText(message.text) : message.text;
       const numbered = message.actions.map((a, i) => `${i + 1}. ${a.label}`).join("\n");
-      return this.socket.sendText(recipient.externalId, `${message.text}\n\nReply with:\n${numbered}`);
+      return this.socket.sendText(recipient.externalId, `${text}\n\nReply with:\n${numbered}`);
     }
 
     console.warn(`[whatsapp] Dropping unsupported outbound kind: ${message.kind}`);

@@ -9,16 +9,18 @@ import { BaileysSocketBridgeImpl } from "./infrastructure/channels/whatsapp/bail
 import { WhatsAppChannelDriver } from "./infrastructure/channels/whatsapp/whatsapp-channel-driver.js";
 import { mapBaileysInbound } from "./infrastructure/channels/whatsapp/baileys-mapper.js";
 import { WebChannelDriver } from "./infrastructure/channels/web/web-channel-driver.js";
-import { JsonDatabase } from "./infrastructure/persistence/json-database.js";
+import { Pool } from "pg";
+import { PostgresDatabase } from "./infrastructure/persistence/postgres-database.js";
+import { applyMigrations } from "./infrastructure/persistence/migrations.js";
 import { InMemoryMessageLogRepository } from "./infrastructure/persistence/in-memory-message-log.js";
 import {
-  JsonConversationRepository,
-  JsonMatchQueueRepository,
-  JsonReportRepository,
-  JsonPointsRepository,
-  JsonModerationEventRepository,
-  JsonUserRepository
-} from "./infrastructure/persistence/json-repositories.js";
+  PostgresConversationRepository,
+  PostgresMatchQueueRepository,
+  PostgresReportRepository,
+  PostgresPointsRepository,
+  PostgresModerationEventRepository,
+  PostgresUserRepository
+} from "./infrastructure/persistence/postgres-repositories.js";
 import { TelegramChannelDriver } from "./infrastructure/channels/telegram/telegram-channel-driver.js";
 import { mapTelegramInbound } from "./infrastructure/channels/telegram/telegram-mapper.js";
 import { TelegramBotBridgeImpl } from "./infrastructure/channels/telegram/telegram-bot-bridge.js";
@@ -29,7 +31,7 @@ dotenv.config({ path: './src/.env' })
 const IS_DEVELOPMENT = process.env.APP_MODE !== "production" && process.env.NODE_ENV !== "production";
 const DATA_DIR = process.env.DATA_DIR ?? (IS_DEVELOPMENT ? ".data/development" : ".data");
 const AUTH_DIR = process.env.WHATSAPP_AUTH_DIR ?? `${DATA_DIR}/whatsapp-auth`;
-const DB_PATH = process.env.DB_PATH ?? `${DATA_DIR}/db.json`;
+const DATABASE_URL = process.env.DATABASE_URL;
 const HTTP_PORT = Number(process.env.PORT ?? process.env.WEB_PORT ?? 3000);
 const HTTP_HOST = process.env.HTTP_HOST ?? (IS_DEVELOPMENT ? "127.0.0.1" : "0.0.0.0");
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
@@ -45,19 +47,25 @@ const TELEGRAM_ENABLED = IS_DEVELOPMENT
 const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 async function main(): Promise<void> {
+  if (!DATABASE_URL) {
+    throw new Error("DATABASE_URL must be set to a PostgreSQL connection string.");
+  }
   if (IS_DEVELOPMENT) {
     console.log("Development mode: local web simulator only; production data and chat accounts are untouched.");
     if (process.env.ENABLE_TELEGRAM === "1") console.warn("Development mode: connecting to the real Telegram bot because ENABLE_TELEGRAM=1.");
     if (process.env.ENABLE_WHATSAPP === "1") console.warn("Development mode: connecting to the real WhatsApp account because ENABLE_WHATSAPP=1.");
   }
   // ---- Persistence ---------------------------------------------------------
-  const db = new JsonDatabase(DB_PATH);
-  const users = new JsonUserRepository(db);
-  const conversations = new JsonConversationRepository(db);
-  const queue = new JsonMatchQueueRepository(db);
-  const reports = new JsonReportRepository(db);
-  const points = new JsonPointsRepository(db);
-  const moderationEvents = new JsonModerationEventRepository(db);
+  const pool = new Pool({ connectionString: DATABASE_URL });
+  pool.on("error", (error) => console.error("[database] Unexpected PostgreSQL pool error.", error));
+  await applyMigrations(pool);
+  const db = new PostgresDatabase(pool);
+  const users = new PostgresUserRepository(db);
+  const conversations = new PostgresConversationRepository(db);
+  const queue = new PostgresMatchQueueRepository(db);
+  const reports = new PostgresReportRepository(db);
+  const points = new PostgresPointsRepository(db);
+  const moderationEvents = new PostgresModerationEventRepository(db);
   const log = new InMemoryMessageLogRepository();
 
   // ---- Services ------------------------------------------------------------
@@ -133,7 +141,7 @@ async function main(): Promise<void> {
       : "WhatsApp disabled (DISABLE_WHATSAPP=1).");
   }
 
-  console.log(`State stored in ${DB_PATH}.`);
+  console.log("State stored in PostgreSQL.");
   console.log(
     `AI fallback: ${MATCHMAKING_CONFIG.aiFallback.enabled ? "enabled" : "disabled"} (source: ${AI_URL ?? "stub"}).`
   );
@@ -156,6 +164,7 @@ async function main(): Promise<void> {
       whatsapp?.stop(),
       telegram?.stop(),
       web.stop(),
+      db.close(),
     ]);
 
     process.exit(0);

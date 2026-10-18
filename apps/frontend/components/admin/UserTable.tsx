@@ -1,6 +1,6 @@
 "use client";
 import { STRINGS } from "@/lib/constants";
-import type { AdminUser } from "@/lib/types";
+import type { AdminUser } from "@anonymous-chat/shared/contracts";
 
 export const UserTable = ({ users, onShadowBan, onModerator }: { readonly users: readonly AdminUser[]; readonly onShadowBan: (userId: string, banned: boolean) => void; readonly onModerator: (userId: string, granted: boolean) => void }) => (
   <table>

@@ -1,6 +1,6 @@
 "use client";
 import { STRINGS } from "@/lib/constants";
-import type { AdminReport } from "@/lib/types";
+import type { AdminReport } from "@anonymous-chat/shared/contracts";
 
 export const ReportsTable = ({ reports }: { readonly reports: readonly AdminReport[] }) => {
   if (reports.length === 0) return <p className="muted">{STRINGS.noReports}</p>;

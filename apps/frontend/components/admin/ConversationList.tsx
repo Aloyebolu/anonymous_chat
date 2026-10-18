@@ -1,6 +1,6 @@
 "use client";
 import { STRINGS } from "@/lib/constants";
-import type { AdminConversation } from "@/lib/types";
+import type { AdminConversation } from "@anonymous-chat/shared/contracts";
 
 export interface ConversationListProps {
   readonly conversations: readonly AdminConversation[];

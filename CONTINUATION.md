@@ -19,7 +19,11 @@ a Telegram Mini App, robust onboarding, a useful command set, and clear bot repl
 - Baileys code stays in its WhatsApp infrastructure directory.
 - User-facing backend copy belongs in `apps/backend/src/application/messages.ts`;
   frontend copy belongs in `apps/frontend/lib/constants.ts`.
-- Current persistence is a single-process JSON database at `.data/db.json`.
+- Application data is persisted in PostgreSQL using versioned SQL migrations.
+  Configure `DATABASE_URL`; migrations run automatically at startup or explicitly
+  with `npm run db:migrate` from `apps/backend`.
+- Cross-app domain types, API contracts, channel contracts, and constants live
+  in `packages/shared`; both apps link to that local package.
 - Do not put secrets in source. Telegram requires `TELEGRAM_BOT_TOKEN`.
 
 ## Current state and known gaps
@@ -30,11 +34,11 @@ a Telegram Mini App, robust onboarding, a useful command set, and clear bot repl
   profiles instead of resetting their flow.
 - Telegram startup no longer falls back to an embedded credential. Set
   `TELEGRAM_BOT_TOKEN` in the runtime environment.
-- `npm run dev` is safe local mode: isolated `.data/development` persistence,
+- `npm run dev` is safe local mode: PostgreSQL persistence from `DATABASE_URL`,
   localhost-only web/admin/API binds, stub AI, and no Telegram/WhatsApp connection
   unless explicitly enabled with `ENABLE_TELEGRAM=1` / `ENABLE_WHATSAPP=1`.
-  `npm start` selects production mode and `.data` persistence.
-- Points now have a persisted JSON ledger, `/points`, idempotent message awards,
+  `npm start` selects production mode; WhatsApp auth remains under `.data/`.
+- Points now have a persisted PostgreSQL ledger, `/points`, idempotent message awards,
   a 20 point per UTC day chat cap, Mini App daily check-in/profile completion
   rewards, and points-funded VIP.
 - Telegram Mini App launch/auth, profile settings, and mobile UI are implemented.
@@ -69,7 +73,7 @@ a Telegram Mini App, robust onboarding, a useful command set, and clear bot repl
 2. Add point history and redemption options, then introduce payment providers
    behind a provider-neutral VIP checkout interface (Telegram Stars/cards).
 3. Finish deployment configuration for the Mini App, with HTTPS origins, domain
-   setup, durable multi-process persistence, and operational monitoring.
+   setup, PostgreSQL backups, and operational monitoring.
 4. Expand privacy, account, language, and safety controls based on user needs.
 
 ## Handoff discipline
@@ -100,3 +104,6 @@ complete based only on a plan or mock screen.
 - 2026-10-17: Added moderator tokens, availability and channel selection, secure
   channel linking, automatic overflow matches, support notifications, and
   shadow-ban controls. Backend/frontend production builds pass; tests were not run.
+- 2026-10-17: Replaced JSON persistence with PostgreSQL repositories and a
+  versioned SQL migration runner, with local Compose setup and automatic startup
+  migrations. `DATABASE_URL` is now required.

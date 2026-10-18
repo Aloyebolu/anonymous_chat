@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { STRINGS } from "@/lib/constants";
 import { fetchWatchLog } from "@/lib/services/admin";
-import type { MessageLogEntry } from "@/lib/types";
+import type { MessageLogEntryDto as MessageLogEntry } from "@anonymous-chat/shared/contracts";
 
 export interface WatchPanelProps {
   readonly conversationId: string | null;

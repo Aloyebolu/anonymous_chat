@@ -1,5 +1,5 @@
 import { streamUrl } from "./api";
-import type { OutboundMessage } from "../types";
+import type { WebOutboundMessage as OutboundMessage } from "@anonymous-chat/shared/contracts";
 
 export interface StreamHandle { close: () => void }
 

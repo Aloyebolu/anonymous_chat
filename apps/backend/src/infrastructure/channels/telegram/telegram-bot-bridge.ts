@@ -79,9 +79,9 @@ export class TelegramBotBridgeImpl implements TelegramBotBridge {
         }
     }
 
-    async sendText(chatId: string, text: string): Promise<void> {
+    async sendText(chatId: string, text: string, format?: "html"): Promise<void> {
         if (!this.bot) throw new Error("Telegram bot is not connected.");
-        await this.bot.telegram.sendMessage(chatId, text);
+        await this.bot.telegram.sendMessage(chatId, text, format === "html" ? { parse_mode: "HTML" } : undefined);
     }
 
     async sendTyping(chatId: string): Promise<void> {
@@ -136,7 +136,8 @@ export class TelegramBotBridgeImpl implements TelegramBotBridge {
     async sendButtons(
         chatId: string,
         text: string,
-        actions: readonly { id: string; label: string; url?: string }[]
+        actions: readonly { id: string; label: string; url?: string }[],
+        format?: "html"
     ): Promise<void> {
         if (!this.bot) throw new Error("Telegram bot is not connected.");
         await this.bot.telegram.sendMessage(chatId, text, {
@@ -144,7 +145,8 @@ export class TelegramBotBridgeImpl implements TelegramBotBridge {
                 inline_keyboard: [actions.map((action) => action.url
                     ? ({ text: action.label, web_app: { url: action.url } })
                     : ({ text: action.label, callback_data: action.id }))]
-            }
+            },
+            ...(format === "html" ? { parse_mode: "HTML" as const } : {})
         });
     }
 

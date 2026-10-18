@@ -1,4 +1,10 @@
-import type { AdminReport, AdminState, MessageLogEntry } from "../types";
+import type {
+  AdminReport,
+  AdminState,
+  MessageLogEntryDto as MessageLogEntry,
+  ModerationEventSummary,
+  ReportedUserSummary
+} from "@anonymous-chat/shared/contracts";
 
 const ADMIN = process.env.NEXT_PUBLIC_ADMIN_API ?? process.env.NEXT_PUBLIC_WEB_API;
 
@@ -86,14 +92,12 @@ export const setModerator = async (targetUserId: string, granted: boolean): Prom
   return await res.json() as { token?: string };
 };
 
-export interface ReportedUserSummary { reportedUserId: string; reports: number; latestReportAt: string }
 export const fetchReportedUsers = async (): Promise<{ users: ReportedUserSummary[] }> => {
   const res = await adminFetch("/api/reported-users");
   if (!res.ok) throw new Error(`reported users failed: ${res.status}`);
   return (await res.json()) as { users: ReportedUserSummary[] };
 };
 
-export interface ModerationEventSummary { id: string; userId: string; reason: string; createdAt: string; messageLength: number; score: number }
 export const fetchModerationEvents = async (): Promise<{ events: ModerationEventSummary[] }> => {
   const res = await adminFetch("/api/moderation-events");
   if (!res.ok) throw new Error(`moderation events failed: ${res.status}`);

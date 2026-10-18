@@ -31,13 +31,32 @@ npm run dev
 ```
 
 `npm run dev` uses `tsx` to execute `src/main.ts` in safe local development mode.
+The backend uses PostgreSQL in both development and production. Copy
+`.env.example` to `src/.env`, start the local database, then apply migrations:
+
+```sh
+cp .env.example src/.env
+docker compose up -d db
+npm run db:migrate
+```
+
+The Compose service stores its data in a named volume, so restarting or
+recreating the container does not remove the local database. For deployment,
+configure `DATABASE_URL` with your managed PostgreSQL connection string. The
+application applies any pending SQL migrations on startup; `npm run db:migrate`
+can also be used explicitly. Migrations are ordered files in
+`src/infrastructure/persistence/migrations/`; add a new numbered `.sql` file
+for each schema change rather than editing a migration that has already shipped.
+
+Types and constants used across both apps live in `../../packages/shared`.
+Add shared domain or API types there instead of duplicating them in either app.
 
 ## Running without touching WhatsApp
 
-`npm run dev` uses an isolated `.data/development/` database and starts only the
-web simulator. It does not connect to Telegram or WhatsApp, so you can exercise
-onboarding, matching, chat, points, commands, and admin tools locally without
-deploying or messaging real users.
+`npm run dev` starts only the web simulator and uses the PostgreSQL database
+configured by `DATABASE_URL`. It does not connect to Telegram or WhatsApp, so
+you can exercise onboarding, matching, chat, points, commands, and admin tools
+locally without messaging real users.
 
 ```sh
 npm run dev
@@ -67,8 +86,8 @@ The web channel, admin API, and Telegram Mini App API share one HTTP port.
 Set `PORT` on Render; locally, the default is `3000` (`WEB_PORT` remains available
 as a local override).
 
-Development mode does not load the production `.data/db.json` or WhatsApp auth
-state. To test with a real Telegram bot, explicitly set `ENABLE_TELEGRAM=1` and
+WhatsApp auth state remains separate under `.data/`. To test with a real
+Telegram bot, explicitly set `ENABLE_TELEGRAM=1` and
 `TELEGRAM_BOT_TOKEN` in the local environment file; use a separate test bot since
 this sends real bot traffic. WhatsApp requires the separate explicit
 `ENABLE_WHATSAPP=1` flag and uses development-only auth state. Leave both flags
@@ -76,8 +95,8 @@ at `0` for web-only development.
 
 ## Running with WhatsApp
 
-`npm start` explicitly selects production mode and uses `.data/` for its
-configured database and WhatsApp auth. Use `DISABLE_TELEGRAM=1` or
+`npm start` explicitly selects production mode and uses `DATABASE_URL` for
+PostgreSQL while keeping WhatsApp auth in `.data/`. Use `DISABLE_TELEGRAM=1` or
 `DISABLE_WHATSAPP=1` to disable a production channel.
 
 Expected output:
@@ -165,11 +184,8 @@ first time (or after logging out of the linked device).
 
 ## What is still in-memory / deliberately mocked
 
-- `InMemoryUserRepository`, `InMemoryMatchQueueRepository`, and
-  `InMemoryConversationRepository` are the current persistence. They are constructed in
-  `src/main.ts` and can be swapped for a real implementation behind the same ports.
-- Reports and blocks are not persisted anywhere yet; they only end the current
-  conversation.
+- The production app uses PostgreSQL repositories. Message logs remain in-memory
+  and are intentionally not persisted.
 - WhatsApp native buttons are not used. The Baileys button payload is unstable across
   versions, so the adapter always renders interactions as a numbered text fallback. The
   driver records pending actions per chat and translates numeric or label replies back
@@ -213,16 +229,13 @@ UI, and the command palette above the input gives you one-click access to all of
 - Matchmaking runs in two stages. First, `MatchmakingService.join` tries a strict
   match: both users' gender and country preferences must be satisfied by the other.
   If nothing fits, the user is added to a queue with a timestamp.
-- Every 15 seconds a sweep runs. Any queued user who has been waiting ≥ 2 minutes
+- Every 5 seconds a sweep runs. Any queued user who has been waiting ≥ 2 minutes
   has their own preferences relaxed — they will accept the next available queued
   partner whose own preferences still accept them. This gives you the classic
   "wait 2 minutes for a match" behavior without a bot silently dropping your request.
-- The queue, users, profiles, eligibility, drafts, and conversations are persisted as
-  JSON to `.data/db.json` (atomic write via a `.tmp` file + rename). This is a
-  development persistence layer. Swapping it for PostgreSQL later only requires new
-  implementations of the `UserRepository`, `MatchQueueRepository`, and
-  `ConversationRepository` ports, plus a one-line change in `src/main.ts`.
-- To reset locally, delete `.data/db.json`.
+- The queue, users, profiles, eligibility, drafts, conversations, reports,
+  points, and moderation events are persisted in PostgreSQL. Set `DATABASE_URL`;
+  the backend applies pending SQL migrations automatically on startup.
 
 ### Commands
 

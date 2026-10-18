@@ -7,13 +7,21 @@ import type {
     OutboundMessage
 } from "../../../ports/channels.js";
 
+const escapeHtml = (text: string): string => text.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#39;"
+})[character]!);
+
 // in telegram-channel-driver.ts
 export interface TelegramBotBridge {
     connect(): Promise<void>;
     onMessage(handler: (raw: unknown) => void): void;
-    sendText(chatId: string, text: string): Promise<void>;
+    sendText(chatId: string, text: string, format?: "html"): Promise<void>;
     sendTyping?(chatId: string): Promise<void>;
-    sendButtons?(chatId: string, text: string, actions: readonly { id: string; label: string; url?: string }[]): Promise<void>;
+    sendButtons?(chatId: string, text: string, actions: readonly { id: string; label: string; url?: string }[], format?: "html"): Promise<void>;
     sendMedia?(chatId: string, media: MediaPayload, caption?: string): Promise<void>;
     resolveMediaUrl?(fileId: string): Promise<string | undefined>;
     close(): Promise<void>;
@@ -65,16 +73,18 @@ export class TelegramChannelDriver implements ChannelDriver {
 
     async sendMessage(recipient: ChannelRecipient, message: OutboundMessage): Promise<void> {
         if (message.kind === "text") {
-            return this.bot.sendText(recipient.externalId, message.text);
+            return this.bot.sendText(recipient.externalId, message.text, message.format);
         }
 
         if (message.kind === "interaction") {
             if (this.bot.sendButtons) {
-                return this.bot.sendButtons(recipient.externalId, message.text, message.actions);
+                return this.bot.sendButtons(recipient.externalId, message.text, message.actions, message.format);
             }
             this.pendingActions.set(recipient.externalId, message.actions);
-            const options = message.actions.map((action, index) => `${index + 1}. ${action.label}`).join("\n");
-            return this.bot.sendText(recipient.externalId, `${message.text}\n\n${options}`);
+            const options = message.actions.map((action, index) =>
+                `${index + 1}. ${message.format === "html" ? escapeHtml(action.label) : action.label}`
+            ).join("\n");
+            return this.bot.sendText(recipient.externalId, `${message.text}\n\n${options}`, message.format);
         }
 
         if (message.kind === "media") {

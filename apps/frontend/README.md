@@ -4,11 +4,21 @@ Two processes:
 
 ```sh
 # backend (terminal 1)
+cd apps/backend
+npm install
 DISABLE_WHATSAPP=1 npm run dev          # web + admin APIs
 
 # frontend (terminal 2)
-cd ui && npm install && npm run dev     # Next.js on http://localhost:3002
+cd apps/frontend
+npm install
+npm run dev                             # Next.js on http://localhost:3002
 ```
+
+Both apps depend on the local `packages/shared` package. Shared domain models,
+API contracts, channel message contracts, and cross-app constants belong there;
+keep UI copy and app-specific behavior in the respective app. The package is
+linked locally from each app, so source changes in `packages/shared` are used
+directly by both builds.
 
 Ports:
 

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { openStream } from "../services/stream";
-import type { OutboundMessage } from "../types";
+import type { WebOutboundMessage as OutboundMessage } from "@anonymous-chat/shared/contracts";
 
 export interface ChatEntry {
   readonly id: string;

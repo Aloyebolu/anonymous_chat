@@ -1,5 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import type {
+  AdminReport,
+  AdminState,
+  MessageLogEntryDto,
+  ModerationEventSummary,
+  ReportedUserSummary
+} from "@anonymous-chat/shared/contracts";
 import { AI_CHANNEL, conversationId as brandConversationId, userId as brandUserId } from "../../domain/types.js";
 import type { MatchmakingConfig } from "../../application/matchmaking.js";
 import type { MatchmakingService } from "../../application/matchmaking.js";
@@ -59,9 +66,19 @@ export class AdminServer {
 
     try {
       if (req.method === "GET" && url.pathname === "/api/state") return this.json(res, await this.buildSnapshot());
-      if (req.method === "GET" && url.pathname === "/api/reports") return this.json(res, { reports: await this.deps.reports.all() });
+      if (req.method === "GET" && url.pathname === "/api/reports") {
+        const reports: AdminReport[] = (await this.deps.reports.all()).map((report) => ({
+          ...report,
+          createdAt: report.createdAt.toISOString()
+        }));
+        return this.json(res, { reports });
+      }
       if (req.method === "GET" && url.pathname === "/api/moderation-events") {
-        return this.json(res, { events: await this.deps.moderationEvents?.all() ?? [] });
+        const events: ModerationEventSummary[] = (await this.deps.moderationEvents?.all() ?? []).map((event) => ({
+          ...event,
+          createdAt: event.createdAt.toISOString()
+        }));
+        return this.json(res, { events });
       }
 
       if (req.method === "POST" && url.pathname === "/api/user/shadow-ban") {
@@ -171,7 +188,10 @@ export class AdminServer {
             latestReportAt: !existing || report.createdAt > existing.latestReportAt ? report.createdAt : existing.latestReportAt
           });
         }
-        return this.json(res, { users: [...grouped.values()].sort((a, b) => b.reports - a.reports) });
+        const users: ReportedUserSummary[] = [...grouped.values()]
+          .sort((a, b) => b.reports - a.reports)
+          .map((summary) => ({ ...summary, latestReportAt: summary.latestReportAt.toISOString() }));
+        return this.json(res, { users });
       }
 
       if (req.method === "POST" && url.pathname === "/api/operator/login") {
@@ -201,7 +221,11 @@ export class AdminServer {
       if (req.method === "GET" && url.pathname === "/api/watch") {
         const id = url.searchParams.get("conversationId");
         if (!id) { res.statusCode = 400; res.end("conversationId required"); return; }
-        return this.json(res, { entries: this.deps.log.entriesFor(brandConversationId(id)) });
+        const entries: MessageLogEntryDto[] = this.deps.log.entriesFor(brandConversationId(id)).map((entry) => ({
+          ...entry,
+          timestamp: entry.timestamp.toISOString()
+        }));
+        return this.json(res, { entries });
       }
 
       if (req.method === "POST" && url.pathname === "/api/operator/match") {
@@ -231,7 +255,7 @@ export class AdminServer {
     res.end(JSON.stringify(payload));
   }
 
-  private async buildSnapshot() {
+  private async buildSnapshot(): Promise<AdminState> {
     const now = Date.now();
     const identities = await this.deps.users.allIdentities();
     const queue = await this.deps.queue.entries();
@@ -256,7 +280,16 @@ export class AdminServer {
         channel: identity.channel,
         externalId: identity.externalId,
         eligibility: eligibility?.status ?? "none",
-        profile: profile ? { ...profile, moderatorAccessHash: undefined, moderatorLinkCodeHash: undefined, moderatorLinkCodeExpiresAt: undefined } : null,
+        profile: profile ? {
+          gender: profile.gender,
+          country: profile.country,
+          preferredGender: profile.preferredGender,
+          preferredCountry: profile.preferredCountry,
+          priorityTier: profile.priorityTier,
+          shadowBanned: profile.shadowBanned,
+          moderator: profile.moderator,
+          moderatorAvailable: profile.moderatorAvailable
+        } : null,
         waitingMs: waitingByUser.get(identity.userId) ?? null,
         conversationId: activeByUser.get(identity.userId) ?? null
       });
@@ -273,7 +306,7 @@ export class AdminServer {
         id: conversation.id,
         status: conversation.status,
         kind: conversation.kind ?? "human",
-        createdAt: conversation.createdAt,
+        createdAt: conversation.createdAt.toISOString(),
         participants: conversation.participants
           .filter((p) => p.identity.channel !== AI_CHANNEL)
           .map((participant) => ({

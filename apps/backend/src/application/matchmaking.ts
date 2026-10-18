@@ -215,31 +215,30 @@ export class MatchmakingService {
       created.push(conversation);
     }
 
-    // Real users get first chance to match. Any remaining waiters may be served
-    // by an opted-in moderator, whose selected channel identity receives the chat.
+    // Keep waiters in the human queue until the fallback threshold. At that
+    // point, offer an available moderator first, then use AI if none can take it.
+    const remaining = available.filter((entry) => !taken.has(entry.userId));
+    const threshold = this.aiThresholdMs(remaining.length || 1);
     const moderators = await this.availableModerators();
-    const remainingForModerators = available.filter((entry) => !taken.has(entry.userId));
-    for (const entry of remainingForModerators) {
+    for (const entry of remaining) {
+      if (now.getTime() - entry.enqueuedAt.getTime() < threshold) continue;
+
       const moderator = moderators.find((candidate) => !taken.has(candidate.userId));
-      if (!moderator) break;
-      const conversation = await this.createModeratorConversation(entry.userId, moderator.userId, moderator.identity);
+      if (moderator) {
+        const conversation = await this.createModeratorConversation(entry.userId, moderator.userId, moderator.identity);
+        if (conversation) {
+          taken.add(entry.userId);
+          taken.add(moderator.userId);
+          created.push(conversation);
+          continue;
+        }
+      }
+
+      if (!this.config.aiFallback.enabled) continue;
+      const conversation = await this.createAiConversation(entry.userId);
       if (!conversation) continue;
       taken.add(entry.userId);
-      taken.add(moderator.userId);
       created.push(conversation);
-    }
-
-    if (this.config.aiFallback.enabled) {
-      const remaining = available.filter((entry) => !taken.has(entry.userId));
-      const threshold = this.aiThresholdMs(remaining.length || 1);
-      for (const entry of remaining) {
-        const waitMs = now.getTime() - entry.enqueuedAt.getTime();
-        if (waitMs < threshold) continue;
-        const conversation = await this.createAiConversation(entry.userId);
-        if (!conversation) continue;
-        taken.add(entry.userId);
-        created.push(conversation);
-      }
     }
 
     return created;

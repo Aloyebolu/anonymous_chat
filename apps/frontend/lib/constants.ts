@@ -1,3 +1,5 @@
+import { CHAT_COMMANDS } from "@anonymous-chat/shared/constants";
+
 export const STRINGS = {
   appTitle: "Anonymous adult chat",
   appDescription: "Adults-only anonymous chat",
@@ -55,7 +57,7 @@ export const STRINGS = {
   statusWaiting: "waiting",
   statusInChat: "in chat",
   statusEnded: "ended",
-  commands: ["/start", "/find", "/next", "/leave", "/report", "/block", "/help", "/points"] as const
+  commands: CHAT_COMMANDS
 } as const;
 
 export const DEFAULT_USER = "alice";
