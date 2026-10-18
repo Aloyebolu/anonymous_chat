@@ -1,18 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { VIP_CONFIG } from "@anonymous-chat/shared/constants";
 import type { Gender, GenderPreference } from "@anonymous-chat/shared/domain";
 import type { MiniAppProfile as MiniProfile } from "@anonymous-chat/shared/contracts";
+
 interface TelegramMiniApp {
   initData: string;
   initDataUnsafe?: { user?: { first_name?: string } };
+  colorScheme?: "light" | "dark";
   ready(): void;
   expand(): void;
 }
 declare global { interface Window { Telegram?: { WebApp: TelegramMiniApp } } }
 
 const API = process.env.NEXT_PUBLIC_MINI_APP_API ?? process.env.NEXT_PUBLIC_WEB_API ?? "http://localhost:3000";
+
 const COPY = {
   title: "Your little corner",
   subtitle: "Make your chats feel more like you.",
@@ -49,155 +52,73 @@ const COPY = {
 const languages = ["en", "fr", "es", "pt", "ar", "ha", "yo", "ig"] as const;
 const genderLabels: Record<Gender, string> = { female: "Woman", male: "Man", nonbinary: "Non-binary" };
 
-export default function MiniAppPage() {
-  const [initData, setInitData] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [profile, setProfile] = useState<MiniProfile | null>(null);
-  const [points, setPoints] = useState(0);
-  const [vipCost, setVipCost] = useState<number>(VIP_CONFIG.pointsCost);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState("");
-  const [error, setError] = useState("");
+type TabKey = "home" | "profile" | "vip";
+const TABS: { key: TabKey; label: string; icon: string }[] = [
+  { key: "home", label: "Home", icon: "✦" },
+  { key: "profile", label: "Profile", icon: "✿" },
+  { key: "vip", label: "VIP", icon: "♛" }
+];
 
-  const request = useCallback(async (path: string, method = "GET", body?: unknown) => {
-    const response = await fetch(`${API}${path}`, {
-      method,
-      headers: { authorization: `tma ${initData}`, ...(body ? { "content-type": "application/json" } : {}) },
-      ...(body ? { body: JSON.stringify(body) } : {})
-    });
-    const data = await response.json() as Record<string, unknown>;
-    if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Request failed");
-    return data;
-  }, [initData]);
-
-  const loadProfile = useCallback(async () => {
-    if (!initData) return;
-    setLoading(true);
-    try {
-      const data = await request("/api/miniapp/me");
-      setProfile(data.profile as MiniProfile);
-      setPoints(Number(data.points ?? 0));
-      setVipCost(Number(data.vipCostPoints ?? VIP_CONFIG.pointsCost));
-      setError("");
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : COPY.error);
-    } finally {
-      setLoading(false);
-    }
-  }, [initData, request]);
-
+/* ---------- theme ---------- */
+function useSystemTheme() {
+  const [mode, setMode] = useState<"light" | "dark">("dark");
   useEffect(() => {
-    const webApp = window.Telegram?.WebApp;
-    if (webApp) {
-      webApp.ready();
-      webApp.expand();
-      setInitData(webApp.initData);
-      setFirstName(webApp.initDataUnsafe?.user?.first_name ?? "friend");
-    }
+    const tg = window.Telegram?.WebApp?.colorScheme;
+    if (tg) { setMode(tg); return; }
+    const mql = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => setMode(mql.matches ? "dark" : "light");
+    apply();
+    mql.addEventListener("change", apply);
+    return () => mql.removeEventListener("change", apply);
   }, []);
+  return mode;
+}
 
-  useEffect(() => { void loadProfile(); }, [loadProfile]);
+/* ---------- primitives ---------- */
+function Spinner() { return <span className="m-spinner" aria-hidden />; }
 
-  const updateField = <K extends keyof MiniProfile>(key: K, value: MiniProfile[K]) => {
-    setProfile((current) => current ? { ...current, [key]: value } : current);
-  };
-
-  const saveProfile = async () => {
-    if (!profile) return;
-    setBusy(true);
-    setNotice(""); setError("");
-    try {
-      const data = await request("/api/miniapp/profile", "PATCH", {
-        displayName: profile.displayName ?? "",
-        showName: profile.showName ?? false,
-        age: profile.age ? Number(profile.age) : undefined,
-        language: profile.language ?? "en",
-        gender: profile.gender,
-        country: profile.country,
-        preferredGender: profile.preferredGender,
-        preferredCountry: profile.preferredCountry ?? ""
-      });
-      setProfile(data.profile as MiniProfile);
-      setPoints(Number(data.points ?? points));
-      setNotice(Number(data.earned) > 0 ? `${COPY.saved} · +${data.earned} points` : COPY.saved);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : COPY.error);
-    } finally { setBusy(false); }
-  };
-
-  const checkIn = async () => {
-    setBusy(true); setError(""); setNotice("");
-    try {
-      const data = await request("/api/miniapp/daily-check-in", "POST", {});
-      setPoints(Number(data.points ?? points));
-      setNotice(Number(data.earned) > 0 ? COPY.checkInDone : COPY.checkInAgain);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : COPY.error); }
-    finally { setBusy(false); }
-  };
-
-  const buyVip = async () => {
-    setBusy(true); setError(""); setNotice("");
-    try {
-      const data = await request("/api/miniapp/vip", "POST", { idempotencyKey: crypto.randomUUID() });
-      setProfile(data.profile as MiniProfile);
-      setPoints(Number(data.points ?? points));
-      setNotice(COPY.active);
-    } catch (reason) {
-      const message = reason instanceof Error ? reason.message : COPY.error;
-      setError(message.includes("Not enough points") ? COPY.insufficient : message);
-    } finally { setBusy(false); }
-  };
-
-  if (!initData) return <main className="mini-page"><section className="mini-card mini-empty">{COPY.signedOut}</section></main>;
-  if (loading) return <main className="mini-page"><section className="mini-card mini-empty">{COPY.busy}</section></main>;
-  if (!profile) return <main className="mini-page"><section className="mini-card mini-empty">{error || COPY.error}</section></main>;
-
+function Button({ variant = "primary", busy, children, onClick, disabled }: {
+  variant?: "primary" | "light" | "vip" | "ghost";
+  busy?: boolean;
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+}) {
   return (
-    <main className="mini-page">
-      <div className="mini-orb mini-orb-one" /><div className="mini-orb mini-orb-two" />
-      <header className="mini-heading">
-        <div className="mini-mark">🐧</div>
-        <div><p className="mini-eyebrow">ANONYMOUS CHAT · YOUR SPACE</p><h1>{COPY.title}, {firstName}</h1><p>{COPY.subtitle}</p></div>
-      </header>
-
-      <section className="mini-wallet mini-card">
-        <div><p className="mini-eyebrow">{COPY.points}</p><strong>{points}</strong><span> pts</span><p className="mini-cap">{COPY.cap}</p></div>
-        <button className="mini-button mini-button-light" disabled={busy} onClick={() => void checkIn()}>
-          <span className="mini-button-icon">✦</span><span><b>{COPY.daily}</b><small>{COPY.dailyReward}</small></span>
-        </button>
-      </section>
-
-      {error && <p className="mini-alert mini-alert-error">{error}</p>}
-      {notice && <p className="mini-alert mini-alert-success">{notice}</p>}
-
-      <section className="mini-card mini-settings">
-        <div className="mini-section-heading"><span className="mini-section-icon">✿</span><div><h2>{COPY.settings}</h2><p>{COPY.privacy}</p></div></div>
-        <div className="mini-form-grid">
-          <label>{COPY.name}<input value={profile.displayName ?? ""} maxLength={28} placeholder={firstName} onChange={(event) => updateField("displayName", event.target.value)} /></label>
-          <label>{COPY.age}<input type="number" min={18} max={99} value={profile.age ?? ""} placeholder="18+" onChange={(event) => updateField("age", event.target.value ? Number(event.target.value) : undefined)} /></label>
-          <label>{COPY.gender}<select value={profile.gender} disabled={!profile.vipUntil || Date.parse(profile.vipUntil) <= Date.now()} onChange={(event) => updateField("gender", event.target.value as Gender)}>{Object.entries(genderLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-          <label>{COPY.country}<input value={profile.country} maxLength={56} onChange={(event) => updateField("country", event.target.value)} /></label>
-          <label>{COPY.language}<select value={profile.language ?? "en"} onChange={(event) => updateField("language", event.target.value)}>{languages.map((language) => <option key={language} value={language}>{language.toUpperCase()}</option>)}</select></label>
-          <label>{COPY.preferredGender}<select value={profile.preferredGender} onChange={(event) => updateField("preferredGender", event.target.value as GenderPreference)}><option value="any">Anyone</option>{Object.entries(genderLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-          <label className="mini-full-row">{COPY.preferredCountry}<input value={profile.preferredCountry ?? ""} maxLength={56} placeholder="Any country" onChange={(event) => updateField("preferredCountry", event.target.value)} /></label>
-        </div>
-        <label className="mini-toggle"><input type="checkbox" checked={profile.showName ?? false} onChange={(event) => updateField("showName", event.target.checked)} /><span><b>{COPY.showName}</b><small>{COPY.privacy}</small></span></label>
-        <button className="mini-button mini-button-primary" disabled={busy} onClick={() => void saveProfile()}>{busy ? "Saving…" : COPY.save}</button>
-        {(!profile.vipUntil || Date.parse(profile.vipUntil) <= Date.now()) && <p className="mini-gender-note">{COPY.genderVip}</p>}
-        <p className="mini-reward-note">{COPY.earn}</p>
-      </section>
-
-      <section className="mini-vip mini-card">
-        <div className="mini-vip-top"><span className="mini-vip-star">✦</span><span className="mini-vip-badge">VIP</span></div>
-        <h2>{profile.vipUntil && Date.parse(profile.vipUntil) > Date.now() ? COPY.active : COPY.vip}</h2>
-        <p>{COPY.vipBody}</p>
-        {profile.vipUntil && Date.parse(profile.vipUntil) > Date.now()
-          ? <span className="mini-vip-date">Active until {new Date(profile.vipUntil).toLocaleDateString()}</span>
-          : <button className="mini-button mini-button-vip" disabled={busy || points < vipCost} onClick={() => void buyVip()}>{COPY.buyVip(vipCost)}</button>}
-        <small>Other secure payment options can be added alongside points.</small>
-      </section>
-      <footer className="mini-footer">Your name is private by default · You must be 18 or older</footer>
-    </main>
+    <button className={`m-btn m-btn-${variant}`} disabled={disabled || busy} onClick={onClick} type="button">
+      {busy && <Spinner />}
+      <span>{children}</span>
+    </button>
   );
 }
+
+function Field({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) {
+  return (
+    <label className={`m-field${full ? " m-field-full" : ""}`}>
+      <span className="m-field-label">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function Toggle({ checked, onChange, title, subtitle }: {
+  checked: boolean; onChange: (v: boolean) => void; title: string; subtitle: string;
+}) {
+  return (
+    <label className="m-toggle">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span className="m-toggle-track"><span className="m-toggle-thumb" /></span>
+      <span className="m-toggle-text"><b>{title}</b><small>{subtitle}</small></span>
+    </label>
+  );
+}
+
+function Alert({ kind, children }: { kind: "error" | "success"; children: React.ReactNode }) {
+  return <div className={`m-alert m-alert-${kind}`}>{children}</div>;
+}
+
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <div className={`m-card ${className}`}>{children}</div>;
+}
+
+// CONTINUARE

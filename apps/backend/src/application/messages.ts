@@ -1,4 +1,5 @@
 import { CHAT_COMMANDS } from "@anonymous-chat/shared/constants";
+import { escapeHtml } from "@anonymous-chat/shared/rich-text";
 
 export const MSG = {
   helpNew: "<b>Welcome!</b> Send <code>/start</code> to begin the 18+ setup. Once your profile is ready, use <code>/find</code> to meet someone, <code>/app</code> for settings and rewards, or <code>/help</code> for guidance.",
@@ -48,18 +49,9 @@ export const MSG = {
   slowDown: "<i>Please slow down and avoid repeating the same message.</i> Try again in a moment.",
   unableToMatch: "We couldn't find a match right now. Please try again in a moment.",
   mediaUnsupportedByPartner: "Your partner can't receive media yet. <b>Send text instead.</b>",
-  mediaUnsupportedHere: "This channel doesn't support media yet.",
+  mediaUnsupportedHere: "<i>This channel doesn't support media yet.</i>",
   paymentReceived: "<b>Payment received.</b> Thank you!"
 } as const;
-
-export const escapeHtml = (value: string): string =>
-  value.replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    "\"": "&quot;",
-    "'": "&#39;"
-  })[character]!);
 
 export const AI_PERSONA = {
   systemPrompt: `You are a friendly humane stranger on an anonymous 18+ chat app.

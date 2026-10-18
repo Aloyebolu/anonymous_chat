@@ -24,6 +24,10 @@ a Telegram Mini App, robust onboarding, a useful command set, and clear bot repl
   with `npm run db:migrate` from `apps/backend`.
 - Cross-app domain types, API contracts, channel contracts, and constants live
   in `packages/shared`; both apps link to that local package.
+- Backend outbound text uses shared HTML rich text, rendered natively by
+  Telegram, converted to plain text by WhatsApp, and safely rendered by web.
+- Matchmaking offers regular users first; after the fallback threshold, an
+  available moderator is tried before the AI fallback.
 - Do not put secrets in source. Telegram requires `TELEGRAM_BOT_TOKEN`.
 
 ## Current state and known gaps
@@ -107,3 +111,7 @@ complete based only on a plan or mock screen.
 - 2026-10-17: Replaced JSON persistence with PostgreSQL repositories and a
   versioned SQL migration runner, with local Compose setup and automatic startup
   migrations. `DATABASE_URL` is now required.
+- 2026-10-18: Added HTML rich text across channel adapters (Telegram HTML,
+  WhatsApp plain-text conversion, safe web rendering) and delayed moderator
+  matchmaking until the fallback threshold, with AI attempted when no moderator
+  can take the user.

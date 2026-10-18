@@ -51,6 +51,19 @@ for each schema change rather than editing a migration that has already shipped.
 Types and constants used across both apps live in `../../packages/shared`.
 Add shared domain or API types there instead of duplicating them in either app.
 
+### Rich text and fallback matchmaking
+
+Backend text and interaction messages use HTML as their portable rich-text
+format. Telegram sends it with HTML parse mode; WhatsApp converts supported
+markup and entities to readable plain text; the web client renders a safe,
+limited set of formatting tags. Escape user- or model-generated text before
+including it in HTML so it remains literal text rather than markup.
+
+Matchmaking always tries user-to-user matches first. Waiters remain in the
+regular queue until the configured AI fallback threshold; at that point an
+available moderator is tried first, followed by AI when no moderator can take
+the chat.
+
 ## Running without touching WhatsApp
 
 `npm run dev` starts only the web simulator and uses the PostgreSQL database

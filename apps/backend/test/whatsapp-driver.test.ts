@@ -22,6 +22,17 @@ describe("WhatsApp channel driver", () => {
     expect(socket.sent).toEqual([{ jid: "a@s.whatsapp.net", text: "hi" }]);
   });
 
+  it("converts HTML-formatted text to readable plain text", async () => {
+    const socket = new FakeSocket();
+    const driver = new WhatsAppChannelDriver(socket, mapBaileysInbound);
+    await driver.start(async () => {});
+    await driver.sendMessage(
+      { channel: "whatsapp", externalId: "a@s.whatsapp.net" },
+      { kind: "text", text: "<b>Hello</b><br>Tom &amp; Jo", format: "html" }
+    );
+    expect(socket.sent[0].text).toBe("Hello\nTom & Jo");
+  });
+
   it("renders interactions as a numbered text fallback", async () => {
     const socket = new FakeSocket();
     const driver = new WhatsAppChannelDriver(socket, mapBaileysInbound);
@@ -34,6 +45,17 @@ describe("WhatsApp channel driver", () => {
     expect(socket.sent[0].text).toContain("Pick one");
     expect(socket.sent[0].text).toContain("1. X");
     expect(socket.sent[0].text).toContain("2. Y");
+  });
+
+  it("converts formatted interaction text before adding numbered actions", async () => {
+    const socket = new FakeSocket();
+    const driver = new WhatsAppChannelDriver(socket, mapBaileysInbound);
+    await driver.start(async () => {});
+    await driver.sendMessage(
+      { channel: "whatsapp", externalId: "a@s.whatsapp.net" },
+      { kind: "interaction", text: "<b>Choose one</b>", format: "html", actions: [{ id: "x", label: "X" }] }
+    );
+    expect(socket.sent[0].text).toBe("Choose one\n\nReply with:\n1. X");
   });
 
   it("resolves numeric replies into action events", async () => {

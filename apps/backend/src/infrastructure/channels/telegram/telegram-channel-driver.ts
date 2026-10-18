@@ -6,14 +6,7 @@ import type {
     MediaPayload,
     OutboundMessage
 } from "../../../ports/channels.js";
-
-const escapeHtml = (text: string): string => text.replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    "\"": "&quot;",
-    "'": "&#39;"
-})[character]!);
+import { escapeHtml } from "@anonymous-chat/shared/rich-text";
 
 // in telegram-channel-driver.ts
 export interface TelegramBotBridge {

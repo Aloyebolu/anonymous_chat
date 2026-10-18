@@ -13,7 +13,10 @@ const decodeEntities = (text: string): string => text.replace(
     if (value[0] === "#") {
       const hexadecimal = value[1]?.toLowerCase() === "x";
       const codePoint = Number.parseInt(value.slice(hexadecimal ? 2 : 1), hexadecimal ? 16 : 10);
-      return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : entity;
+      return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff &&
+        !(codePoint >= 0xd800 && codePoint <= 0xdfff)
+        ? String.fromCodePoint(codePoint)
+        : entity;
     }
     return ENTITIES[value] ?? entity;
   }

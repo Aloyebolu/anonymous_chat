@@ -131,4 +131,76 @@ describe("matchmaking", () => {
     // Re-check that a second sweep is a no-op.
     expect(await service.sweep()).toHaveLength(0);
   });
+
+  it("waits for human matches before connecting a waiting user to an available moderator", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2025-01-01T00:00:00Z"));
+    const { users, service, queue } = setup(testConfig());
+    const user = await makeUser(users, "waiting-user", { gender: "male", country: "NG", preferredGender: "any" });
+    const moderator = await users.findOrCreate({ channel: "telegram", externalId: "moderator" });
+    await users.saveProfile({
+      userId: moderator.userId,
+      gender: "female",
+      country: "NG",
+      preferredGender: "any",
+      moderator: true,
+      moderatorAvailable: true,
+      moderatorChannels: ["telegram"]
+    });
+
+    expect(await service.join(user.userId)).toHaveLength(0);
+    expect(await queue.entries()).toHaveLength(1);
+
+    vi.advanceTimersByTime(service.aiThresholdMs(1) - 1);
+    expect(await service.sweep()).toHaveLength(0);
+    expect(await queue.entries()).toHaveLength(1);
+
+    vi.advanceTimersByTime(1);
+    const matched = await service.sweep();
+    expect(matched).toHaveLength(1);
+    expect(matched[0].kind).toBe("operator");
+    expect(matched[0].participants.map((participant) => participant.userId)).toContain(moderator.userId);
+  });
+
+  it("uses AI after the fallback wait when no moderator is available", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2025-01-01T00:00:00Z"));
+    const { users, service } = setup(testConfig());
+    const user = await makeUser(users, "waiting-user", { gender: "male", country: "NG", preferredGender: "any" });
+
+    expect(await service.join(user.userId)).toHaveLength(0);
+    vi.advanceTimersByTime(service.aiThresholdMs(1));
+
+    const matched = await service.sweep();
+    expect(matched).toHaveLength(1);
+    expect(matched[0].kind).toBe("ai");
+  });
+
+  it("still gives real users priority over moderators after the fallback wait", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2025-01-01T00:00:00Z"));
+    const { users, service } = setup(testConfig());
+    const waitingUser = await makeUser(users, "waiting-user", { gender: "male", country: "NG", preferredGender: "any" });
+    const arrivingUser = await makeUser(users, "arriving-user", { gender: "female", country: "NG", preferredGender: "any" });
+    const moderator = await users.findOrCreate({ channel: "telegram", externalId: "moderator" });
+    await users.saveProfile({
+      userId: moderator.userId,
+      gender: "female",
+      country: "NG",
+      preferredGender: "any",
+      moderator: true,
+      moderatorAvailable: true,
+      moderatorChannels: ["telegram"]
+    });
+
+    await service.join(waitingUser.userId);
+    vi.advanceTimersByTime(service.aiThresholdMs(1));
+
+    const matched = await service.join(arrivingUser.userId);
+    expect(matched).toHaveLength(1);
+    expect(matched[0].kind).toBe("human");
+    expect(matched[0].participants.map((participant) => participant.userId)).toContain(waitingUser.userId);
+    expect(matched[0].participants.map((participant) => participant.userId)).toContain(arrivingUser.userId);
+    expect(matched[0].participants.map((participant) => participant.userId)).not.toContain(moderator.userId);
+  });
 });
