@@ -48,7 +48,7 @@ const TELEGRAM_ENABLED = IS_DEVELOPMENT
 const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 async function main(): Promise<void> {
-  if (!DATABASE_URL) {
+  if (!DATABASE_URL && !(process.env.DB_USER)) {
     throw new Error("DATABASE_URL must be set to a PostgreSQL connection string.");
   }
   if (IS_DEVELOPMENT) {
