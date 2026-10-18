@@ -21,7 +21,8 @@ import type { AiService } from "../ports/ai.js";
 import type { ModerationService } from "../ports/moderation.js";
 import type { MessageLogRepository, ReportRepository } from "../ports/reports.js";
 import type { ModerationEventRepository } from "../ports/moderation-events.js";
-import { AI_PERSONA, escapeHtml, MSG } from "./messages.js";
+import { escapeHtml } from "@anonymous-chat/shared/rich-text";
+import { AI_PERSONA, MSG } from "./messages.js";
 import { MatchmakingService } from "./matchmaking.js";
 
 const MAX_MESSAGE_LENGTH = 4000;
