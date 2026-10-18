@@ -97,7 +97,7 @@ export class PostgresUserRepository implements UserRepository {
              OR EXISTS (
                SELECT 1 FROM conversations
                WHERE status = 'active'
-                 AND payload->'participants' @> jsonb_build_array(jsonb_build_object('userId', $1))
+                 AND payload->'participants' @> jsonb_build_array(jsonb_build_object('userId', $1::text))
              ) AS exists`,
           [sourceId]
         );
@@ -218,7 +218,7 @@ export class PostgresConversationRepository implements ConversationRepository {
     const result = await this.db.query<{ payload: Conversation }>(
       `SELECT payload FROM conversations
        WHERE status = 'active'
-         AND payload->'participants' @> jsonb_build_array(jsonb_build_object('userId', $1))
+         AND payload->'participants' @> jsonb_build_array(jsonb_build_object('userId', $1::text))
        ORDER BY created_at DESC LIMIT 1`,
       [id]
     );
