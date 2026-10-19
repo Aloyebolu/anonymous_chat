@@ -5,10 +5,16 @@ import { STRINGS } from "@/lib/constants";
 import type { WebOutboundMessage as OutboundMessage } from "@anonymous-chat/shared/contracts";
 
 export interface MessageBubbleProps {
+  readonly messageId: string;
   readonly message: OutboundMessage;
   readonly role: "inbound" | "outbound";
+  readonly reactions: readonly string[];
+  readonly replyPreview?: string;
   readonly onCommand: (command: string) => void;
   readonly onAction: (action: { id: string; label: string }) => void;
+  readonly onReply: (messageId: string, preview: string) => void;
+  readonly onEdit: (messageId: string, text: string) => void;
+  readonly onReact: (messageId: string, emoji: string) => void;
 }
 
 type RichTag = "b" | "strong" | "i" | "em" | "u" | "ins" | "s" | "strike" | "del" | "code" | "pre" | "blockquote" | "p" | "ul" | "ol" | "li" | "a" | "br";
@@ -113,7 +119,18 @@ const DownloadIcon = () => (
   </svg>
 );
 
-export const MessageBubble = ({ message, role, onCommand, onAction }: MessageBubbleProps) => {
+export const MessageBubble = ({
+  message,
+  messageId,
+  role,
+  reactions,
+  replyPreview,
+  onCommand,
+  onAction,
+  onReply,
+  onEdit,
+  onReact
+}: MessageBubbleProps) => {
   const outbound = role === "outbound";
   const isMedia = message.kind === "media";
   const isInteraction = message.kind === "interaction";
@@ -175,18 +192,47 @@ export const MessageBubble = ({ message, role, onCommand, onAction }: MessageBub
     body = <div className="mb-text">{renderPlainText(message.text, onCommand, "plain")}</div>;
   }
 
+  const preview = (message.kind === "text" || message.kind === "interaction"
+    ? message.text
+    : message.caption || `Shared ${message.media.kind}`).replace(/<[^>]*>/g, "").slice(0, 120);
+
   return (
     <>
       <style>{CSS_TEXT}</style>
       <div
         className={`mb-bubble${outbound ? " mb-out" : " mb-in"}${isMedia ? " mb-bubble-media" : ""}`}
       >
+        {message.replyToMessageId && (
+          <div className="mb-reply-preview">
+            <strong>Reply</strong>
+            <span>{replyPreview || "Previous message"}</span>
+          </div>
+        )}
         {body}
         {isInteraction && (
           <div className="mb-actions">
             <InteractionButtons actions={message.actions} onPick={onAction} />
           </div>
         )}
+        {reactions.length > 0 && <div className="mb-reactions" aria-label="Reactions">{reactions.join(" ")}</div>}
+        <div className="mb-tools">
+          <button type="button" onClick={() => onReply(messageId, preview)}>Reply</button>
+          {outbound && message.kind === "text" && (
+            <button type="button" onClick={() => onEdit(messageId, message.text)}>Edit</button>
+          )}
+          {["👍", "❤️", "😂", "😮", "😢", "🙏"].map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              className="mb-react"
+              aria-label={`React ${emoji}`}
+              title={`React ${emoji}`}
+              onClick={() => onReact(messageId, emoji)}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
       </div>
     </>
   );
@@ -231,6 +277,13 @@ const CSS_TEXT = `
 }
 
 .mb-text { white-space:pre-wrap; }
+.mb-reply-preview {
+  display:flex; flex-direction:column; gap:2px; margin-bottom:8px; padding:5px 8px;
+  border-left:2px solid currentColor; border-radius:2px 7px 7px 2px;
+  background:rgba(15,23,42,.07); font-size:11px; opacity:.85;
+}
+.mb-reply-preview span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mb-out .mb-reply-preview { background:rgba(255,255,255,.14); }
 .mb-text a { color:inherit; text-decoration:underline; text-underline-offset:2px; }
 .mb-in .mb-text a { color:#4f46e5; }
 .mb-out .mb-text a { color:#e0e7ff; }
@@ -331,6 +384,17 @@ const CSS_TEXT = `
 
 /* actions */
 .mb-actions { margin-top:10px; }
+.mb-reactions { margin-top:7px; font-size:13px; }
+.mb-tools { display:flex; flex-wrap:wrap; align-items:center; gap:3px; margin-top:7px; }
+.mb-tools button {
+  min-width:26px; height:25px; padding:0 6px; border:0; border-radius:8px;
+  color:inherit; background:rgba(15,23,42,.08); font:inherit; font-size:11px;
+  cursor:pointer; opacity:.78;
+}
+.mb-tools button:hover { opacity:1; background:rgba(15,23,42,.16); }
+.mb-tools .mb-react { min-width:27px; padding:0 4px; font-size:14px; }
+.mb-out .mb-tools button { background:rgba(255,255,255,.18); }
+.mb-out .mb-tools button:hover { background:rgba(255,255,255,.3); }
 
 @media (prefers-reduced-motion: reduce) {
   .mb-bubble { animation:none; }

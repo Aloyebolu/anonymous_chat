@@ -27,12 +27,20 @@ interface BaileysMessageShape {
   };
   readonly message?: {
     readonly conversation?: string;
-    readonly extendedTextMessage?: { readonly text?: string };
-    readonly imageMessage?: { readonly mimetype?: string; readonly fileLength?: number | bigint; readonly caption?: string };
-    readonly videoMessage?: { readonly mimetype?: string; readonly fileLength?: number | bigint; readonly seconds?: number };
-    readonly audioMessage?: { readonly mimetype?: string; readonly fileLength?: number | bigint; readonly seconds?: number; readonly ptt?: boolean };
-    readonly documentMessage?: { readonly mimetype?: string; readonly fileLength?: number | bigint; readonly fileName?: string };
-    readonly stickerMessage?: { readonly mimetype?: string; readonly fileLength?: number | bigint };
+    readonly extendedTextMessage?: { readonly text?: string; readonly contextInfo?: { readonly stanzaId?: string } };
+    readonly imageMessage?: { readonly mimetype?: string; readonly fileLength?: number | bigint; readonly caption?: string; readonly contextInfo?: { readonly stanzaId?: string } };
+    readonly videoMessage?: { readonly mimetype?: string; readonly fileLength?: number | bigint; readonly seconds?: number; readonly contextInfo?: { readonly stanzaId?: string } };
+    readonly audioMessage?: { readonly mimetype?: string; readonly fileLength?: number | bigint; readonly seconds?: number; readonly ptt?: boolean; readonly contextInfo?: { readonly stanzaId?: string } };
+    readonly documentMessage?: { readonly mimetype?: string; readonly fileLength?: number | bigint; readonly fileName?: string; readonly contextInfo?: { readonly stanzaId?: string } };
+    readonly stickerMessage?: { readonly mimetype?: string; readonly fileLength?: number | bigint; readonly contextInfo?: { readonly stanzaId?: string } };
+    readonly reactionMessage?: {
+      readonly key?: { readonly id?: string };
+      readonly text?: string;
+    };
+    readonly protocolMessage?: {
+      readonly key?: { readonly id?: string };
+      readonly editedMessage?: BaileysMessageShape["message"];
+    };
     readonly buttonsResponseMessage?: { readonly selectedButtonId?: string };
     readonly listResponseMessage?: { readonly singleSelectReply?: { readonly selectedRowId?: string } };
     readonly templateButtonReplyMessage?: { readonly selectedId?: string };
@@ -67,6 +75,14 @@ const extractActionId = (message: BaileysMessageShape["message"]): string | unde
   if (message.templateButtonReplyMessage?.selectedId) return message.templateButtonReplyMessage.selectedId;
   return undefined;
 };
+
+const extractReplyToMessageId = (message: BaileysMessageShape["message"]): string | undefined =>
+  message?.extendedTextMessage?.contextInfo?.stanzaId ??
+  message?.imageMessage?.contextInfo?.stanzaId ??
+  message?.videoMessage?.contextInfo?.stanzaId ??
+  message?.audioMessage?.contextInfo?.stanzaId ??
+  message?.documentMessage?.contextInfo?.stanzaId ??
+  message?.stickerMessage?.contextInfo?.stanzaId;
 
 const asSize = (value: number | bigint | undefined): number | undefined =>
   value === undefined ? undefined : Number(value);
@@ -104,6 +120,31 @@ export const mapBaileysInbound = (raw: unknown): InboundEvent | undefined => {
   const identity = identityFor(message.key.remoteJid);
   const timestamp = new Date(seconds(message.messageTimestamp) * 1000);
 
+  const edit = message.message?.protocolMessage;
+  const editedText = extractText(edit?.editedMessage);
+  if (edit?.key?.id && editedText !== undefined) {
+    return {
+      kind: "edit",
+      channel,
+      identity,
+      targetMessageId: edit.key.id,
+      text: editedText,
+      timestamp
+    };
+  }
+
+  const reaction = message.message?.reactionMessage;
+  if (reaction?.key?.id && reaction.text) {
+    return {
+      kind: "reaction",
+      channel,
+      identity,
+      targetMessageId: reaction.key.id,
+      emoji: reaction.text,
+      timestamp
+    };
+  }
+
   const actionId = extractActionId(message.message);
   if (actionId) return { kind: "action", channel, identity, actionId, timestamp };
 
@@ -114,7 +155,7 @@ export const mapBaileysInbound = (raw: unknown): InboundEvent | undefined => {
       channel,
       identity,
       externalMessageId: message.key.id,
-      content: { kind: "media", media },
+      content: { kind: "media", media, replyToMessageId: extractReplyToMessageId(message.message) },
       timestamp
     };
   }
@@ -125,5 +166,12 @@ export const mapBaileysInbound = (raw: unknown): InboundEvent | undefined => {
   const command = COMMANDS[text.trim().toLowerCase()];
   if (command) return { kind: "command", channel, identity, command, timestamp };
 
-  return { kind: "message", channel, identity, externalMessageId: message.key.id, content: { kind: "text", text }, timestamp };
+  return {
+    kind: "message",
+    channel,
+    identity,
+    externalMessageId: message.key.id,
+    content: { kind: "text", text, replyToMessageId: extractReplyToMessageId(message.message) },
+    timestamp
+  };
 };

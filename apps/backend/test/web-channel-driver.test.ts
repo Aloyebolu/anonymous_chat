@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { WebChannelDriver } from "../src/infrastructure/channels/web/web-channel-driver.js";
 import type { InboundEvent } from "../src/ports/channels.js";
 import { InMemoryUserRepository } from "../src/infrastructure/persistence/in-memory-repositories.js";
+import { API_PATHS } from "@anonymous-chat/shared/api";
 
 const baseUrl = (driver: WebChannelDriver) => `http://127.0.0.1:${driver.port}`;
 
@@ -14,14 +15,21 @@ describe("web channel driver", () => {
       const res = await fetch(`${baseUrl(driver)}/api/send`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ user: "alice", text: "hello" })
+        body: JSON.stringify({
+          user: "alice",
+          text: "hello",
+          externalMessageId: "client-message",
+          replyToMessageId: "reply-target"
+        })
       });
-      expect(res.status).toBe(204);
+      expect(res.status).toBe(202);
       expect(received).toHaveLength(1);
       expect(received[0].kind).toBe("message");
       if (received[0].kind === "message") {
         expect(received[0].identity.externalId).toBe("alice");
+        expect(received[0].externalMessageId).toBe("client-message");
         expect(received[0].content.text).toBe("hello");
+        expect(received[0].content.replyToMessageId).toBe("reply-target");
       }
     } finally {
       await driver.stop();
@@ -75,7 +83,7 @@ describe("web channel driver", () => {
           media: { kind: "image", mimeType: "image/png", filename: "photo.png", base64: "AQID" }
         })
       });
-      expect(res.status).toBe(204);
+      expect(res.status).toBe(202);
       expect(received[0].kind).toBe("message");
       if (received[0].kind === "message" && received[0].content.kind === "media") {
         expect(received[0].content.media).toMatchObject({ kind: "image", mimeType: "image/png", filename: "photo.png" });
@@ -108,6 +116,37 @@ describe("web channel driver", () => {
       const deleteFrame = new TextDecoder().decode((await reader.read()).value);
       expect(deleteFrame).toContain('"kind":"delete"');
       expect(deleteFrame).toContain(`"messageId":"${messageId}"`);
+    } finally {
+      await reader.cancel();
+      await driver.stop();
+    }
+  });
+
+  it("streams web message edits and reactions", async () => {
+    const driver = new WebChannelDriver({ port: 0 });
+    await driver.start(async () => {});
+    const response = await fetch(`${baseUrl(driver)}${API_PATHS.stream}?user=alice`);
+    const reader = response.body!.getReader();
+    try {
+      await reader.read();
+      const messageId = await driver.sendMessage(
+        { channel: "web", externalId: "alice" },
+        { kind: "text", text: "original", sourceMessageId: "source-message" }
+      );
+      expect(messageId).toBe("source-message");
+      await reader.read();
+
+      await driver.editMessage(
+        { channel: "web", externalId: "alice" },
+        messageId!,
+        { kind: "text", text: "updated", format: "html" }
+      );
+      expect(new TextDecoder().decode((await reader.read()).value)).toContain('"kind":"edit"');
+
+      await driver.reactMessage({ channel: "web", externalId: "alice" }, messageId!, "👍");
+      const reactionFrame = new TextDecoder().decode((await reader.read()).value);
+      expect(reactionFrame).toContain('"kind":"reaction"');
+      expect(reactionFrame).toContain('"emoji":"👍"');
     } finally {
       await reader.cancel();
       await driver.stop();
@@ -165,6 +204,7 @@ describe("web channel driver", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ username: "Chat_User", password: "some-long-password" })
       });
+
       expect(register.status).toBe(201);
       const account = await register.json() as { username: string; token: string };
       expect(account.username).toBe("chat_user");
@@ -184,7 +224,7 @@ describe("web channel driver", () => {
         },
         body: JSON.stringify({ user: account.username, text: "authenticated" })
       });
-      expect(sent.status).toBe(204);
+      expect(sent.status).toBe(202);
       expect(received[0].identity.externalId).toBe(account.username);
 
       const stream = await fetch(`${baseUrl(driver)}/api/stream?user=${account.username}&token=${encodeURIComponent(account.token)}`);
@@ -204,6 +244,50 @@ describe("web channel driver", () => {
         body: JSON.stringify({ username: account.username, password: "wrong-password" })
       });
       expect(badLogin.status).toBe(401);
+    } finally {
+      await driver.stop();
+    }
+  });
+
+  it("authenticates message edit and reaction endpoints before invoking actions", async () => {
+    const users = new InMemoryUserRepository();
+    const driver = new WebChannelDriver({ port: 0 }, users);
+    const actions: string[] = [];
+    driver.setMessageActions({
+      edit: async (_user, messageId, text) => { actions.push(`edit:${messageId}:${text}`); },
+      react: async (_user, messageId, emoji) => { actions.push(`react:${messageId}:${emoji}`); }
+    });
+    await driver.start(async () => {});
+    try {
+      const register = await fetch(`${baseUrl(driver)}${API_PATHS.web.register}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ username: "action_user", password: "some-long-password" })
+      });
+      const account = await register.json() as { username: string; token: string };
+
+      const denied = await fetch(`${baseUrl(driver)}${API_PATHS.web.editMessage}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ user: account.username, messageId: "m1", text: "changed" })
+      });
+      expect(denied.status).toBe(401);
+
+      for (const [path, body] of [
+        [API_PATHS.web.editMessage, { user: account.username, messageId: "m1", text: "changed" }],
+        [API_PATHS.web.reactMessage, { user: account.username, messageId: "m1", emoji: "👍" }]
+      ] as const) {
+        const result = await fetch(`${baseUrl(driver)}${path}`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${account.token}`
+          },
+          body: JSON.stringify(body)
+        });
+        expect(result.status).toBe(200);
+      }
+      expect(actions).toEqual(["edit:m1:changed", "react:m1:👍"]);
     } finally {
       await driver.stop();
     }

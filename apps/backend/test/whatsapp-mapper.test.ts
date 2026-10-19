@@ -2,6 +2,37 @@ import { describe, expect, it } from "vitest";
 import { mapBaileysInbound } from "../src/infrastructure/channels/whatsapp/baileys-mapper.js";
 
 describe("Baileys inbound mapper", () => {
+  it("maps message replies and reactions", () => {
+    const reply = mapBaileysInbound({
+      key: { remoteJid: "1234@s.whatsapp.net", fromMe: false, id: "reply-id" },
+      message: { extendedTextMessage: { text: "reply", contextInfo: { stanzaId: "target-id" } } },
+      messageTimestamp: 1700000000
+    });
+    expect(reply?.kind).toBe("message");
+    if (reply?.kind === "message") expect(reply.content.replyToMessageId).toBe("target-id");
+
+    const reaction = mapBaileysInbound({
+      key: { remoteJid: "1234@s.whatsapp.net", fromMe: false, id: "reaction-id" },
+      message: { reactionMessage: { key: { id: "target-id" }, text: "👍" } },
+      messageTimestamp: 1700000000
+    });
+    expect(reaction).toMatchObject({ kind: "reaction", targetMessageId: "target-id", emoji: "👍" });
+  });
+
+  it("maps edited text from a WhatsApp protocol update", () => {
+    const event = mapBaileysInbound({
+      key: { remoteJid: "1234@s.whatsapp.net", fromMe: false, id: "edit-container" },
+      message: {
+        protocolMessage: {
+          key: { id: "target-id" },
+          editedMessage: { extendedTextMessage: { text: "updated" } }
+        }
+      },
+      messageTimestamp: 1700000000
+    });
+    expect(event).toMatchObject({ kind: "edit", targetMessageId: "target-id", text: "updated" });
+  });
+
   it("maps a plain text message to a generic inbound message event", () => {
     const event = mapBaileysInbound({
       key: { remoteJid: "1234@s.whatsapp.net", fromMe: false, id: "abc" },

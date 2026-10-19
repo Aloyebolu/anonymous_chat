@@ -25,7 +25,7 @@ interface Client {
 export class WebChannelDriver implements ChannelDriver {
   readonly type = "web";
   readonly capabilities: ChannelCapabilities = {
-    text: true, buttons: true, menus: false, menuLayouts: [], messageEditing: false, messageDeletion: true,
+    text: true, buttons: true, menus: false, menuLayouts: [], messageEditing: true, messageDeletion: true, messageReactions: true, messageReplies: true,
     typingIndicator: false, media: ["image", "video", "audio", "voice", "document", "sticker"], payments: [], deepLinks: false
   };
 
@@ -34,6 +34,10 @@ export class WebChannelDriver implements ChannelDriver {
   private receiver?: (event: InboundEvent) => Promise<void>;
   private fallbackHandler?: RequestListener;
   private readonly clients = new Map<string, Set<Client>>();
+  private messageActions?: {
+    edit: (user: string, messageId: string, text: string) => Promise<void>;
+    react: (user: string, messageId: string, emoji: string) => Promise<void>;
+  };
 
   constructor(private readonly options: WebChannelOptions, private readonly users?: UserRepository) {}
 
@@ -53,6 +57,10 @@ export class WebChannelDriver implements ChannelDriver {
     console.log(`Web channel API listening on http://localhost:${this.boundPort}/`);
   }
 
+  setMessageActions(actions: NonNullable<WebChannelDriver["messageActions"]>): void {
+    this.messageActions = actions;
+  }
+
   async stop(): Promise<void> {
     for (const clients of this.clients.values()) for (const client of clients) client.res.end();
     this.clients.clear();
@@ -64,7 +72,7 @@ export class WebChannelDriver implements ChannelDriver {
   async sendMessage(recipient: ChannelRecipient, message: OutboundMessage): Promise<string | undefined> {
     const clients = this.clients.get(recipient.externalId);
     if (!clients) return undefined;
-    const messageId = crypto.randomUUID();
+    const messageId = ("sourceMessageId" in message ? message.sourceMessageId : undefined) ?? crypto.randomUUID();
     const payload = message.kind === "media" && message.media.bytes
       ? {
           ...message,
@@ -82,10 +90,39 @@ export class WebChannelDriver implements ChannelDriver {
   }
 
   async deleteMessage(recipient: ChannelRecipient, externalMessageId: string): Promise<void> {
-    const clients = this.clients.get(recipient.externalId);
-    if (!clients) return;
-    const payload = JSON.stringify({ kind: "delete", messageId: externalMessageId });
-    for (const client of clients) client.res.write(`data: ${payload}\n\n`);
+    if (!this.publish(recipient.externalId, { kind: "delete", messageId: externalMessageId })) {
+      throw new Error("Web recipient is not connected.");
+    }
+  }
+
+  async editMessage(recipient: ChannelRecipient, externalMessageId: string, message: OutboundMessage): Promise<void> {
+    if (message.kind !== "text") throw new Error("Web messages can only edit text.");
+    if (!this.publish(recipient.externalId, {
+      kind: "edit",
+      messageId: externalMessageId,
+      text: message.text,
+      format: message.format
+    })) throw new Error("Web recipient is not connected.");
+  }
+
+  async reactMessage(recipient: ChannelRecipient, externalMessageId: string, emoji: string): Promise<void> {
+    if (!this.publish(recipient.externalId, { kind: "reaction", messageId: externalMessageId, emoji })) {
+      throw new Error("Web recipient is not connected.");
+    }
+  }
+
+  async notifyReaction(recipient: ChannelRecipient, externalMessageId: string, emoji: string, userId?: string): Promise<void> {
+    if (!this.publish(recipient.externalId, { kind: "reaction", messageId: externalMessageId, emoji, userId })) {
+      throw new Error("Web recipient is not connected.");
+    }
+  }
+
+  private publish(user: string, payload: unknown): boolean {
+    const clients = this.clients.get(user);
+    if (!clients) return false;
+    const serialized = JSON.stringify(payload);
+    for (const client of clients) client.res.write(`data: ${serialized}\n\n`);
+    return true;
   }
 
   private async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -99,6 +136,8 @@ export class WebChannelDriver implements ChannelDriver {
     }
     if (this.users && req.method === "POST" && url.pathname === API_PATHS.web.register) return this.register(req, res);
     if (this.users && req.method === "POST" && url.pathname === API_PATHS.web.login) return this.login(req, res);
+    if (req.method === "POST" && url.pathname === API_PATHS.web.editMessage) return this.editWebMessage(req, res);
+    if (req.method === "POST" && url.pathname === API_PATHS.web.reactMessage) return this.reactWebMessage(req, res);
     if (req.method === "GET" && url.pathname === API_PATHS.stream) return this.serveStream(req, url, res);
     if (req.method === "POST" && url.pathname === API_PATHS.send) return this.acceptSend(req, res);
     if (this.fallbackHandler) {
@@ -107,6 +146,74 @@ export class WebChannelDriver implements ChannelDriver {
     }
     res.statusCode = 404;
     res.end("Not found");
+  }
+
+  private async editWebMessage(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const body = await this.readAuthBody(req, res);
+    if (!body) return;
+    const user = await this.authenticatedRequestUser(req, body, res);
+    if (!user) return;
+    const messageId = typeof body.messageId === "string" ? body.messageId : "";
+    const text = typeof body.text === "string" ? body.text : "";
+    if (!messageId || !text.trim() || text.length > 4000) {
+      this.json(res, 400, { error: "A message ID and text (up to 4000 characters) are required." });
+      return;
+    }
+    if (!this.messageActions) {
+      this.json(res, 503, { error: "Message editing is unavailable." });
+      return;
+    }
+    try {
+      await this.messageActions.edit(user, messageId, text);
+      this.json(res, 200, { ok: true });
+    } catch (error) {
+      console.warn("[web] Message edit rejected.", error);
+      this.json(res, 400, { error: error instanceof Error ? error.message : "Could not edit the message." });
+    }
+  }
+
+  private async reactWebMessage(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const body = await this.readAuthBody(req, res);
+    if (!body) return;
+    const user = await this.authenticatedRequestUser(req, body, res);
+    if (!user) return;
+    const messageId = typeof body.messageId === "string" ? body.messageId : "";
+    const emoji = typeof body.emoji === "string" ? body.emoji : "";
+    if (!messageId || !/^(?:👍|❤️|😂|😮|😢|🙏)$/.test(emoji)) {
+      this.json(res, 400, { error: "Choose a message and a supported reaction." });
+      return;
+    }
+    if (!this.messageActions) {
+      this.json(res, 503, { error: "Message reactions are unavailable." });
+      return;
+    }
+    try {
+      await this.messageActions.react(user, messageId, emoji);
+      this.json(res, 200, { ok: true });
+    } catch (error) {
+      console.warn("[web] Message reaction rejected.", error);
+      this.json(res, 400, { error: error instanceof Error ? error.message : "Could not react to the message." });
+    }
+  }
+
+  private async authenticatedRequestUser(
+    req: IncomingMessage,
+    body: Record<string, unknown>,
+    res: ServerResponse
+  ): Promise<string | undefined> {
+    const user = typeof body.user === "string" ? body.user.trim() : "";
+    if (!user) {
+      this.json(res, 400, { error: "User is required." });
+      return undefined;
+    }
+    if (this.users) {
+      const authenticatedUser = await this.authenticate(this.bearer(req));
+      if (!authenticatedUser || authenticatedUser !== user) {
+        this.json(res, 401, { error: "Unauthorized." });
+        return undefined;
+      }
+    }
+    return user;
   }
 
   private async serveStream(req: IncomingMessage, url: URL, res: ServerResponse): Promise<void> {
@@ -143,6 +250,11 @@ export class WebChannelDriver implements ChannelDriver {
     const user = typeof body?.user === "string" ? body.user.trim() : undefined;
     const text = typeof body?.text === "string" ? body.text : undefined;
     const actionId = typeof body?.actionId === "string" ? body.actionId : undefined;
+    const replyToMessageId = typeof body?.replyToMessageId === "string" ? body.replyToMessageId : undefined;
+    const requestedMessageId = typeof body?.externalMessageId === "string" &&
+      /^[A-Za-z0-9_-]{1,128}$/.test(body.externalMessageId)
+      ? body.externalMessageId
+      : undefined;
     const media = parseMedia(body?.media);
     if (body?.media !== undefined && !media) { res.statusCode = 400; res.end("Invalid media payload"); return; }
     if (!user || (!text && !actionId && !media)) { res.statusCode = 400; res.end("Missing user or text/actionId/media"); return; }
@@ -159,15 +271,16 @@ export class WebChannelDriver implements ChannelDriver {
             kind: "message",
             channel: this.type,
             identity,
-            externalMessageId: `web-${crypto.randomUUID()}`,
-            content: { kind: "media", media },
+            externalMessageId: requestedMessageId ?? `web-${crypto.randomUUID()}`,
+            content: { kind: "media", media, replyToMessageId },
             timestamp
           }
-        : this.textEvent(identity, text!, timestamp);
+        : this.textEvent(identity, text!, timestamp, replyToMessageId, requestedMessageId);
     try {
       await this.receiver?.(event);
-      res.statusCode = 204;
-      res.end();
+      res.statusCode = 202;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ messageId: event.kind === "message" ? event.externalMessageId : undefined }));
     } catch (error) {
       console.error("[web] Failed to handle inbound message.", error);
       res.statusCode = 500;
@@ -283,7 +396,13 @@ export class WebChannelDriver implements ChannelDriver {
     res.end(JSON.stringify(value));
   }
 
-  private textEvent(identity: InboundEvent["identity"], text: string, timestamp: Date): InboundEvent {
+  private textEvent(
+    identity: InboundEvent["identity"],
+    text: string,
+    timestamp: Date,
+    replyToMessageId?: string,
+    externalMessageId?: string
+  ): InboundEvent {
     const trimmed = text.trim().toLowerCase();
     if (trimmed.startsWith("/") && COMMANDS.has(trimmed.slice(1))) {
       return {
@@ -294,8 +413,8 @@ export class WebChannelDriver implements ChannelDriver {
     }
     return {
       kind: "message", channel: this.type, identity,
-      externalMessageId: `web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      content: { kind: "text", text },
+      externalMessageId: externalMessageId ?? `web-${crypto.randomUUID()}`,
+      content: { kind: "text", text, replyToMessageId },
       timestamp
     };
   }

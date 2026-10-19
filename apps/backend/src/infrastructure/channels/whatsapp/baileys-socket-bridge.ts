@@ -24,7 +24,7 @@ export class BaileysSocketBridgeImpl implements BaileysSocketBridge {
   private lastOutboundAt = 0;
   private outboundPending = 0;
   private outboundTail: Promise<void> = Promise.resolve();
-  private readonly inboundMedia = new Map<string, WAMessage>();
+  private readonly inboundMessages = new Map<string, WAMessage>();
   private static readonly MIN_SEND_INTERVAL_MS = 1_000;
   private static readonly MAX_PENDING_SENDS = 100;
 
@@ -80,11 +80,11 @@ export class BaileysSocketBridgeImpl implements BaileysSocketBridge {
         if (!handler) return;
         for (const message of messages) {
           try {
-            if (message.key.id && hasMediaContent(message)) {
-              this.inboundMedia.set(message.key.id, message);
-              if (this.inboundMedia.size > 500) {
-                const oldest = this.inboundMedia.keys().next().value;
-                if (oldest) this.inboundMedia.delete(oldest);
+            if (message.key.id) {
+              this.inboundMessages.set(message.key.id, message);
+              if (this.inboundMessages.size > 500) {
+                const oldest = this.inboundMessages.keys().next().value;
+                if (oldest) this.inboundMessages.delete(oldest);
               }
             }
             handler(message);
@@ -93,26 +93,51 @@ export class BaileysSocketBridgeImpl implements BaileysSocketBridge {
           }
         }
       });
+
+      sock.ev.on("messages.update", (updates) => {
+        if (this.closing) return;
+        const handler = this.messageHandler;
+        if (!handler) return;
+        for (const entry of updates) {
+          const editedMessage = entry.update.message?.editedMessage?.message;
+          if (!entry.key.remoteJid || !entry.key.id || !editedMessage) continue;
+          handler({
+            key: entry.key,
+            message: {
+              protocolMessage: {
+                key: { id: entry.key.id },
+                editedMessage
+              }
+            },
+            messageTimestamp: entry.update.messageTimestamp
+          });
+        }
+      });
     } finally {
       this.connecting = false;
     }
   }
 
-  async sendText(jid: string, text: string): Promise<string | undefined> {
+  async sendText(jid: string, text: string, replyToMessageId?: string): Promise<string | undefined> {
     return this.enqueueOutbound(async () => {
       if (!this.sock) throw new Error("Baileys socket is not connected.");
-      const sent = await this.sock.sendMessage(jid, { text });
+      const quoted = replyToMessageId ? this.inboundMessages.get(replyToMessageId) : undefined;
+      if (replyToMessageId && !quoted) throw new Error("[baileys] The message to reply to is no longer available.");
+      const sent = await this.sock.sendMessage(jid, { text }, quoted ? { quoted } : undefined);
       return sent?.key.id ?? undefined;
     });
   }
 
-  async sendMedia(jid: string, media: BridgeMedia): Promise<string | undefined> {
+  async sendMedia(jid: string, media: BridgeMedia, replyToMessageId?: string): Promise<string | undefined> {
     return this.enqueueOutbound(async () => {
       if (!this.sock) throw new Error("Baileys socket is not connected.");
 
       // Both variants (`url` and `data`) are accepted by Baileys directly.
       const source =
         "url" in media ? { url: media.url } : Buffer.from(media.data);
+      const quoted = replyToMessageId ? this.inboundMessages.get(replyToMessageId) : undefined;
+      if (replyToMessageId && !quoted) throw new Error("[baileys] The message to reply to is no longer available.");
+      const options = quoted ? { quoted } : undefined;
 
       switch (media.type) {
         case "image":
@@ -120,7 +145,7 @@ export class BaileysSocketBridgeImpl implements BaileysSocketBridge {
             image: source,
             caption: media.caption,
             mimetype: media.mimeType
-          }))?.key.id ?? undefined;
+          }, options))?.key.id ?? undefined;
 
         case "video":
           return (await this.sock.sendMessage(jid, {
@@ -128,14 +153,14 @@ export class BaileysSocketBridgeImpl implements BaileysSocketBridge {
             caption: media.caption,
             mimetype: media.mimeType,
             gifPlayback: media.gifPlayback
-          }))?.key.id ?? undefined;
+          }, options))?.key.id ?? undefined;
 
         case "audio":
           return (await this.sock.sendMessage(jid, {
             audio: source,
             mimetype: media.mimeType ?? "audio/mp4",
             ptt: media.ptt ?? false
-          }))?.key.id ?? undefined;
+          }, options))?.key.id ?? undefined;
 
         case "document":
           return (await this.sock.sendMessage(jid, {
@@ -143,10 +168,10 @@ export class BaileysSocketBridgeImpl implements BaileysSocketBridge {
             mimetype: media.mimeType ?? "application/octet-stream",
             fileName: media.filename ?? "file",
             caption: media.caption
-          }))?.key.id ?? undefined;
+          }, options))?.key.id ?? undefined;
 
         case "sticker":
-          return (await this.sock.sendMessage(jid, { sticker: source }))?.key.id ?? undefined;
+          return (await this.sock.sendMessage(jid, { sticker: source }, options))?.key.id ?? undefined;
       }
     });
   }
@@ -156,12 +181,34 @@ export class BaileysSocketBridgeImpl implements BaileysSocketBridge {
     await this.sock.sendMessage(jid, { delete: { remoteJid: jid, fromMe: true, id: messageId } });
   }
 
+  async editMessage(jid: string, messageId: string, text: string): Promise<void> {
+    await this.enqueueOutbound(async () => {
+      if (!this.sock) throw new Error("Baileys socket is not connected.");
+      await this.sock.sendMessage(jid, {
+        text,
+        edit: { remoteJid: jid, fromMe: true, id: messageId }
+      });
+    });
+  }
+
+  async reactMessage(jid: string, messageId: string, emoji: string): Promise<void> {
+    await this.enqueueOutbound(async () => {
+      if (!this.sock) throw new Error("Baileys socket is not connected.");
+      await this.sock.sendMessage(jid, {
+        react: {
+          text: emoji,
+          key: { remoteJid: jid, fromMe: false, id: messageId }
+        }
+      });
+    });
+  }
+
   async resolveMedia(media: MediaPayload): Promise<MediaPayload> {
     if (media.url || media.bytes || !media.channelRef) return media;
-    const message = this.inboundMedia.get(media.channelRef);
+    const message = this.inboundMessages.get(media.channelRef);
     if (!message) return media;
     const bytes = await downloadMediaMessage(message, "buffer", {});
-    this.inboundMedia.delete(media.channelRef);
+    this.inboundMessages.delete(media.channelRef);
     return { ...media, channelRef: undefined, bytes, sizeBytes: bytes.byteLength };
   }
 

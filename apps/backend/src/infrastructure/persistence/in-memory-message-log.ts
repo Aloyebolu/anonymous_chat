@@ -22,6 +22,13 @@ export class InMemoryMessageLogRepository implements MessageLogRepository {
     this.entries.set(entry.conversationId, list);
   }
 
+  update(entry: MessageLogEntry): void {
+    const list = this.entries.get(entry.conversationId);
+    if (!list) return;
+    const index = list.findIndex((candidate) => candidate.id === entry.id);
+    if (index >= 0) list[index] = entry;
+  }
+
   entriesFor(conversationId: ConversationId): readonly MessageLogEntry[] {
     return this.entries.get(conversationId) ?? [];
   }

@@ -115,6 +115,10 @@ async function main(): Promise<void> {
     users, conversations, registry, matching, moderation, ai, reports, log, points, moderationEvents,
     process.env.TELEGRAM_MINI_APP_URL, moderatorConsoleUrl, vipPlans
   );
+  web.setMessageActions({
+    edit: (username, messageId, text) => app.editWebMessage(username, messageId, text),
+    react: (username, messageId, emoji) => app.reactWebMessage(username, messageId, emoji)
+  });
 
   const admin = new AdminServer(
     {

@@ -114,4 +114,7 @@ export interface MessageLogEntry {
   readonly direction: "inbound" | "outbound";
   readonly media?: MediaPayload;
   readonly caption?: string;
+  readonly externalMessageId?: string;
+  readonly forwardedMessageId?: string;
+  readonly replyToMessageId?: string;
 }

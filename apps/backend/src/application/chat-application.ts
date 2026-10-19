@@ -57,6 +57,16 @@ type ConversationGate =
     }
   | { readonly ok: false; readonly reason: string };
 
+type MessageReference = {
+  readonly conversationId: Conversation["id"];
+  readonly fromUserId: UserId;
+  readonly toUserId: UserId;
+  readonly sourceIdentity: CommunicationIdentity;
+  readonly forwardedIdentity: CommunicationIdentity;
+  readonly sourceMessageId: string;
+  readonly forwardedMessageId?: string;
+};
+
 export class ChatApplication {
   constructor(
     private readonly users: UserRepository,
@@ -76,6 +86,7 @@ export class ChatApplication {
 
   private readonly recentMessages = new Map<UserId, { at: number; text: string }[]>();
   private readonly settingsMessageIds = new Map<string, string>();
+  private readonly messageReferences = new Map<string, MessageReference>();
 
   // ─── Inbound dispatch ───────────────────────────────────────────────────
 
@@ -98,14 +109,54 @@ export class ChatApplication {
 
     if (event.kind === "command") return this.handleCommand(identity, event.command);
     if (event.kind === "action") return this.handleAction(identity, event.actionId);
+    if (event.kind === "reaction") return this.handleReaction(identity, event.targetMessageId, event.emoji);
+    if (event.kind === "edit") return this.handleNativeEdit(identity, event.targetMessageId, event.text);
     if (event.kind === "payment") return this.handlePayment(identity, event.receipt);
 
     // event.kind === "message"
-    if (event.content.kind === "media") return this.handleMedia(identity, event.content.media, event.content.caption);
-    return this.handleMessage(identity, event.content.text, event.externalMessageId);
+    if (event.content.kind === "media") return this.handleMedia(identity, event.content.media, event.content.caption, event.externalMessageId, event.content.replyToMessageId);
+    return this.handleMessage(identity, event.content.text, event.externalMessageId, event.content.replyToMessageId);
   }
 
   // ─── Public API ─────────────────────────────────────────────────────────
+
+  async editWebMessage(username: string, messageId: string, text: string): Promise<void> {
+    const identity = await this.users.identityForChannelExternalId("web", username);
+    if (!identity) throw new Error("Web account was not found.");
+    const reference = this.messageReferences.get(this.messageReferenceKey(identity, messageId));
+    if (!reference || reference.fromUserId !== identity.userId || reference.toUserId === identity.userId ||
+      !reference.forwardedMessageId) {
+      throw new Error("Only your own messages in the active conversation can be edited.");
+    }
+    const conversation = await this.conversations.byId(reference.conversationId);
+    if (!conversation || conversation.status !== "active" ||
+      !conversation.participants.some((participant) => participant.userId === identity.userId)) {
+      throw new Error("The message is no longer in an active conversation.");
+    }
+    const recipient = conversation.participants.find((participant) => participant.userId === reference.toUserId);
+    if (!recipient || recipient.identity.channel !== reference.forwardedIdentity.channel ||
+      recipient.identity.externalId !== reference.forwardedIdentity.externalId) {
+      throw new Error("The message recipient no longer matches the active conversation.");
+    }
+    const driver = this.channels.driverFor(recipient.identity.channel);
+    if (!driver.capabilities.messageEditing || !driver.editMessage) {
+      throw new Error(`Message editing is not supported by ${recipient.identity.channel}.`);
+    }
+    await driver.editMessage(recipient.identity, reference.forwardedMessageId, { kind: "text", text: escapeHtml(text), format: "html" });
+    const entries = this.log.entriesFor(reference.conversationId);
+    const entry = entries.find((candidate) => candidate.externalMessageId === messageId);
+    if (entry) this.log.update({ ...entry, text });
+  }
+
+  async reactWebMessage(username: string, messageId: string, emoji: string): Promise<void> {
+    const identity = await this.users.identityForChannelExternalId("web", username);
+    if (!identity) throw new Error("Web account was not found.");
+    const reference = this.findMessageReference(messageId, identity);
+    if (!reference || reference.fromUserId === identity.userId) {
+      throw new Error("You can only react to a message from your active conversation partner.");
+    }
+    await this.applyReaction(reference, identity.userId, emoji);
+  }
 
   async setProfile(
     identity: CommunicationIdentity,
@@ -474,7 +525,7 @@ export class ChatApplication {
 
   // ─── Inbound text ───────────────────────────────────────────────────────
 
-  private async handleMessage(identity: CommunicationIdentity, raw: string, externalMessageId: string): Promise<void> {
+  private async handleMessage(identity: CommunicationIdentity, raw: string, externalMessageId: string, replyToMessageId?: string): Promise<void> {
     const text = raw.length > MAX_MESSAGE_LENGTH ? raw.slice(0, MAX_MESSAGE_LENGTH) : raw;
 
     // Onboarding draft flow runs before the conversation gate.
@@ -498,6 +549,9 @@ export class ChatApplication {
     }
 
     const { conversation, partner } = gate;
+    const forwardedReplyMessageId = partner.identity.channel === AI_CHANNEL
+      ? undefined
+      : this.forwardedReplyTarget(identity, replyToMessageId, conversation.id);
 
     const moderation = this.moderation.inspect(text);
     if (moderation.blocked) {
@@ -520,7 +574,9 @@ export class ChatApplication {
       toUserId: partner.userId,
       text,
       timestamp: new Date(),
-      direction: "inbound"
+      direction: "inbound",
+      externalMessageId,
+      replyToMessageId
     } as const;
     this.log.append(inboundEntry);
 
@@ -564,7 +620,121 @@ export class ChatApplication {
       return this.send(identity, { kind: "text", text: escapeHtml(reply) });
     }
 
-    await this.send(partner.identity, { kind: "text", text: escapeHtml(text) });
+    const forwardedMessageId = await this.sendTracked(partner.identity, {
+      kind: "text",
+      text: escapeHtml(text),
+      replyToMessageId: forwardedReplyMessageId,
+      sourceMessageId: externalMessageId
+    });
+    this.rememberMessageReference(identity, externalMessageId, {
+      conversationId: conversation.id,
+      fromUserId: identity.userId,
+      toUserId: partner.userId,
+      sourceIdentity: identity,
+      forwardedIdentity: partner.identity,
+      sourceMessageId: externalMessageId,
+      forwardedMessageId
+    });
+    this.updateLoggedMessage(externalMessageId, { forwardedMessageId });
+  }
+
+  private async handleReaction(identity: CommunicationIdentity, messageId: string, emoji: string): Promise<void> {
+    const reference = this.findMessageReference(messageId, identity);
+    if (!reference || reference.fromUserId === identity.userId) return;
+    await this.applyReaction(reference, identity.userId, emoji);
+  }
+
+  private async handleNativeEdit(identity: CommunicationIdentity, messageId: string, rawText: string): Promise<void> {
+    const reference = this.messageReferences.get(this.messageReferenceKey(identity, messageId));
+    if (!reference || reference.fromUserId !== identity.userId || !reference.forwardedMessageId) return;
+    const conversation = await this.conversations.byId(reference.conversationId);
+    if (!conversation || conversation.status !== "active" ||
+      !conversation.participants.some((participant) => participant.userId === identity.userId)) return;
+    const recipient = conversation.participants.find((participant) => participant.userId === reference.toUserId);
+    if (!recipient || recipient.identity.channel !== reference.forwardedIdentity.channel ||
+      recipient.identity.externalId !== reference.forwardedIdentity.externalId) return;
+    const driver = this.channels.driverFor(reference.forwardedIdentity.channel);
+    if (!driver.capabilities.messageEditing || !driver.editMessage) return;
+
+    const text = rawText.slice(0, MAX_MESSAGE_LENGTH);
+    await driver.editMessage(reference.forwardedIdentity, reference.forwardedMessageId, {
+      kind: "text",
+      text: escapeHtml(text),
+      format: "html"
+    });
+    const entry = this.log.entriesFor(reference.conversationId)
+      .find((candidate) => candidate.externalMessageId === messageId);
+    if (entry) this.log.update({ ...entry, text });
+  }
+
+  private async applyReaction(
+    reference: MessageReference,
+    recipientUserId: UserId,
+    emoji: string
+  ): Promise<void> {
+    const conversation = await this.conversations.byId(reference.conversationId);
+    if (!conversation || conversation.status !== "active" ||
+      !conversation.participants.some((participant) => participant.userId === recipientUserId)) {
+      throw new Error("The conversation is no longer active.");
+    }
+    const sourceDriver = this.channels.driverFor(reference.sourceIdentity.channel);
+    if (!sourceDriver.capabilities.messageReactions || !sourceDriver.reactMessage) {
+      throw new Error(`Reactions are not supported by ${reference.sourceIdentity.channel}.`);
+    }
+    await sourceDriver.reactMessage(reference.sourceIdentity, reference.sourceMessageId, emoji);
+  }
+
+  private messageReferenceKey(identity: CommunicationIdentity, messageId: string): string {
+    return `${identity.channel}:${identity.externalId}:${messageId}`;
+  }
+
+  private rememberMessageReference(
+    identity: CommunicationIdentity,
+    messageId: string,
+    reference: {
+      readonly conversationId: Conversation["id"];
+      readonly fromUserId: UserId;
+      readonly toUserId: UserId;
+      readonly sourceIdentity: CommunicationIdentity;
+      readonly forwardedIdentity: CommunicationIdentity;
+      readonly sourceMessageId: string;
+      readonly forwardedMessageId?: string;
+    }
+  ): void {
+    this.messageReferences.set(this.messageReferenceKey(identity, messageId), reference);
+    if (this.messageReferences.size > 10_000) {
+      const oldest = this.messageReferences.keys().next().value;
+      if (oldest) this.messageReferences.delete(oldest);
+    }
+  }
+
+  private findMessageReference(messageId: string, recipientIdentity: CommunicationIdentity) {
+    return [...this.messageReferences.values()].find((reference) =>
+      reference.toUserId === recipientIdentity.userId &&
+      reference.forwardedMessageId === messageId &&
+      reference.forwardedIdentity.channel === recipientIdentity.channel &&
+      reference.forwardedIdentity.externalId === recipientIdentity.externalId
+    );
+  }
+
+  private forwardedReplyTarget(
+    identity: CommunicationIdentity,
+    replyToMessageId: string | undefined,
+    conversationId: Conversation["id"]
+  ): string | undefined {
+    if (!replyToMessageId) return undefined;
+    const reference = this.findMessageReference(replyToMessageId, identity);
+    if (!reference || reference.toUserId !== identity.userId || reference.conversationId !== conversationId) {
+      throw new Error("The reply target is no longer available in this conversation.");
+    }
+    return reference.sourceMessageId;
+  }
+
+  private updateLoggedMessage(messageId: string, update: { readonly forwardedMessageId?: string }): void {
+    for (const conversationId of this.log.watchedConversations()) {
+      const entry = this.log.entriesFor(conversationId).find((candidate) => candidate.externalMessageId === messageId);
+      if (entry) this.log.update({ ...entry, ...update });
+    }
   }
 
   private inspectSpam(userId: UserId, text: string): { reason: string; score: number } | undefined {
@@ -588,7 +758,7 @@ export class ChatApplication {
 
   // ─── Inbound media ──────────────────────────────────────────────────────
 
-private async handleMedia(identity: CommunicationIdentity, media: MediaPayload, caption?: string): Promise<void> {
+private async handleMedia(identity: CommunicationIdentity, media: MediaPayload, caption?: string, externalMessageId?: string, replyToMessageId?: string): Promise<void> {
   const gate = await this.resolveConversationFor(identity);
   if (!gate.ok) {
     if (gate.reason) await this.send(identity, { kind: "text", text: gate.reason });
@@ -600,6 +770,8 @@ private async handleMedia(identity: CommunicationIdentity, media: MediaPayload, 
   if (partner.identity.channel === AI_CHANNEL) {
     return this.send(identity, { kind: "text", text: MSG.mediaUnsupportedByPartner });
   }
+
+  const forwardedReplyMessageId = this.forwardedReplyTarget(identity, replyToMessageId, conversation.id);
 
   // Does the receiving channel support this media kind?
   const targetDriver = this.channels.driverFor(partner.identity.channel);
@@ -646,10 +818,30 @@ private async handleMedia(identity: CommunicationIdentity, media: MediaPayload, 
     timestamp: new Date(),
     direction: "inbound",
     media: outgoing,
-    caption
+    caption,
+    externalMessageId,
+    replyToMessageId
   });
 
-  await this.send(partner.identity, { kind: "media", media: outgoing, caption });
+  const forwardedMessageId = await this.sendTracked(partner.identity, {
+    kind: "media",
+    media: outgoing,
+    caption,
+    replyToMessageId: forwardedReplyMessageId,
+    sourceMessageId: externalMessageId
+  });
+  if (externalMessageId) {
+    this.rememberMessageReference(identity, externalMessageId, {
+      conversationId: conversation.id,
+      fromUserId: identity.userId,
+      toUserId: partner.userId,
+      sourceIdentity: identity,
+      forwardedIdentity: partner.identity,
+      sourceMessageId: externalMessageId,
+      forwardedMessageId
+    });
+    this.updateLoggedMessage(externalMessageId, { forwardedMessageId });
+  }
 }
 
   // ─── Inbound payment ────────────────────────────────────────────────────

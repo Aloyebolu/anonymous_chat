@@ -8,6 +8,13 @@ import { useChatStream } from "@/lib/hooks/useChatStream";
 import { useSendMessage } from "@/lib/hooks/useSendMessage";
 import { useUserIdentity } from "@/lib/hooks/useUserIdentity";
 import { API_PATHS } from "@anonymous-chat/shared/api";
+import { editWebMessage, reactToWebMessage } from "@/lib/services/api";
+
+interface ComposerContext {
+  readonly kind: "reply" | "edit";
+  readonly messageId: string;
+  readonly preview: string;
+}
 
 const WEB_API = process.env.NEXT_PUBLIC_WEB_API ?? "http://localhost:3000";
 
@@ -18,17 +25,63 @@ export default function HomePage() {
   const [registering, setRegistering] = useState(false);
   const [authError, setAuthError] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
-  const { entries, appendOutbound } = useChatStream(user, token);
+  const [composerContext, setComposerContext] = useState<ComposerContext | undefined>();
+  const [actionError, setActionError] = useState("");
+  const { entries, appendOutbound, updateText, appendReaction } = useChatStream(user, token);
   const send = useSendMessage(user, token);
 
   const sendText = useCallback((text: string) => {
-    appendOutbound({ kind: "text", text });
-    void send({ text });
+    void (async () => {
+      setActionError("");
+      try {
+        if (!user || !token) return;
+        if (composerContext?.kind === "edit") {
+          await editWebMessage(user, token, composerContext.messageId, text);
+          updateText(composerContext.messageId, text);
+          setComposerContext(undefined);
+          return;
+        }
+        const messageId = crypto.randomUUID();
+        await send({
+          text,
+          externalMessageId: messageId,
+          replyToMessageId: composerContext?.kind === "reply" ? composerContext.messageId : undefined
+        });
+        appendOutbound({
+          kind: "text",
+          text,
+          replyToMessageId: composerContext?.kind === "reply" ? composerContext.messageId : undefined
+        }, messageId);
+        setComposerContext(undefined);
+      } catch (reason) {
+        setActionError(reason instanceof Error ? reason.message : "Could not send the message.");
+      }
+    })();
+  }, [appendOutbound, composerContext, send, token, updateText, user]);
+
+  const sendCommand = useCallback((command: string) => {
+    setComposerContext(undefined);
+    setActionError("");
+    void (async () => {
+      try {
+        await send({ text: command });
+        appendOutbound({ kind: "text", text: command }, crypto.randomUUID());
+      } catch (reason) {
+        setActionError(reason instanceof Error ? reason.message : "Could not send the command.");
+      }
+    })();
   }, [appendOutbound, send]);
 
   const sendAction = useCallback((action: { id: string; label: string }) => {
-    appendOutbound({ kind: "text", text: action.label });
-    void send({ actionId: action.id });
+    void (async () => {
+      setActionError("");
+      try {
+        await send({ actionId: action.id });
+        appendOutbound({ kind: "text", text: action.label }, crypto.randomUUID());
+      } catch (reason) {
+        setActionError(reason instanceof Error ? reason.message : "Could not send the action.");
+      }
+    })();
   }, [appendOutbound, send]);
 
   const sendMedia = useCallback(async (media: {
@@ -38,17 +91,43 @@ export default function HomePage() {
     base64: string;
   }) => {
     if (!user) return;
-    appendOutbound({
-      kind: "media",
-      media: {
-        kind: media.kind,
-        mimeType: media.mimeType,
-        filename: media.filename,
-        url: `data:${media.mimeType};base64,${media.base64}`
+    setActionError("");
+    const messageId = crypto.randomUUID();
+    try {
+      await send({
+        media,
+        externalMessageId: messageId,
+        replyToMessageId: composerContext?.kind === "reply" ? composerContext.messageId : undefined
+      });
+      appendOutbound({
+        kind: "media",
+        replyToMessageId: composerContext?.kind === "reply" ? composerContext.messageId : undefined,
+        media: {
+          kind: media.kind,
+          mimeType: media.mimeType,
+          filename: media.filename,
+          url: `data:${media.mimeType};base64,${media.base64}`
+        }
+      }, messageId);
+      setComposerContext(undefined);
+    } catch (reason) {
+      setActionError(reason instanceof Error ? reason.message : "Could not send the media.");
+      throw reason;
+    }
+  }, [appendOutbound, composerContext, send, user]);
+
+  const react = useCallback((messageId: string, emoji: string) => {
+    void (async () => {
+      setActionError("");
+      try {
+        if (!user || !token) return;
+        await reactToWebMessage(user, token, messageId, emoji);
+        appendReaction(messageId, emoji);
+      } catch (reason) {
+        setActionError(reason instanceof Error ? reason.message : "Could not react to the message.");
       }
-    });
-    await send({ media });
-  }, [appendOutbound, send, user]);
+    })();
+  }, [appendReaction, token, user]);
 
   const authenticate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -157,12 +236,25 @@ export default function HomePage() {
         </header>
 
         <main className="hp-body">
-          <ChatLog entries={entries} onCommand={sendText} onAction={sendAction} />
+          <ChatLog
+            entries={entries}
+            onCommand={sendCommand}
+            onAction={sendAction}
+            onReply={(messageId, preview) => setComposerContext({ kind: "reply", messageId, preview })}
+            onEdit={(messageId, text) => setComposerContext({ kind: "edit", messageId, preview: text })}
+            onReact={react}
+          />
         </main>
 
         <footer className="hp-footer">
-          <CommandPalette onCommand={sendText} />
-          <Composer onSend={sendText} onSendMedia={sendMedia} />
+          <CommandPalette onCommand={sendCommand} />
+          {actionError && <p className="hp-auth-error" role="alert">{actionError}</p>}
+          <Composer
+            onSend={sendText}
+            onSendMedia={sendMedia}
+            context={composerContext}
+            onCancelContext={() => setComposerContext(undefined)}
+          />
         </footer>
       </div>
     </>

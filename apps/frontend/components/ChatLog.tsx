@@ -7,9 +7,12 @@ export interface ChatLogProps {
   readonly entries: readonly ChatEntry[];
   readonly onCommand: (command: string) => void;
   readonly onAction: (action: { id: string; label: string }) => void;
+  readonly onReply: (messageId: string, preview: string) => void;
+  readonly onEdit: (messageId: string, text: string) => void;
+  readonly onReact: (messageId: string, emoji: string) => void;
 }
 
-export const ChatLog = ({ entries, onCommand, onAction }: ChatLogProps) => {
+export const ChatLog = ({ entries, onCommand, onAction, onReply, onEdit, onReact }: ChatLogProps) => {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [pinned, setPinned] = useState(true);
 
@@ -50,15 +53,30 @@ export const ChatLog = ({ entries, onCommand, onAction }: ChatLogProps) => {
           {entries.length === 0 ? (
             <div className="cl-empty">No messages yet — say hi 👋</div>
           ) : (
-            entries.map((entry) => (
-              <MessageBubble
-                key={entry.id}
-                message={entry.message}
-                role={entry.role}
-                onCommand={onCommand}
-                onAction={onAction}
-              />
-            ))
+            entries.map((entry) => {
+              const replyToId = entry.message.replyToMessageId;
+              const replyTarget = replyToId ? entries.find((candidate) => candidate.id === replyToId) : undefined;
+              const replyPreview = replyTarget
+                ? replyTarget.message.kind === "media"
+                  ? replyTarget.message.caption || `Shared ${replyTarget.message.media.kind}`
+                  : replyTarget.message.text
+                : undefined;
+              return (
+                <MessageBubble
+                  key={entry.id}
+                  messageId={entry.id}
+                  message={entry.message}
+                  role={entry.role}
+                  reactions={entry.reactions}
+                  replyPreview={replyPreview}
+                  onCommand={onCommand}
+                  onAction={onAction}
+                  onReply={onReply}
+                  onEdit={onEdit}
+                  onReact={onReact}
+                />
+              );
+            })
           )}
         </div>
 

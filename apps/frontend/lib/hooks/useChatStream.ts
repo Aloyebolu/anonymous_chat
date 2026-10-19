@@ -7,6 +7,7 @@ export interface ChatEntry {
   readonly id: string;
   readonly role: "inbound" | "outbound";
   readonly message: OutboundMessage;
+  readonly reactions: readonly string[];
 }
 
 export const useChatStream = (user: string, token: string) => {
@@ -21,20 +22,47 @@ export const useChatStream = (user: string, token: string) => {
         setEntries((prev) => prev.filter((entry) => entry.id !== event.messageId));
         return;
       }
+      if (event.kind === "edit") {
+        setEntries((prev) => prev.map((entry) => entry.id === event.messageId &&
+          (entry.message.kind === "text" || entry.message.kind === "interaction")
+          ? { ...entry, message: { ...entry.message, text: event.text, format: event.format } }
+          : entry));
+        return;
+      }
+      if (event.kind === "reaction") {
+        setEntries((prev) => prev.map((entry) => entry.id === event.messageId
+          ? { ...entry, reactions: [...new Set([...entry.reactions, event.emoji])] }
+          : entry));
+        return;
+      }
       counter.current += 1;
       setEntries((prev) => [...prev, {
         id: event.messageId,
         role: "inbound",
-        message: event
+        message: event,
+        reactions: []
       }]);
     });
     return () => handle.close();
   }, [token, user]);
 
-  const appendOutbound = (message: OutboundMessage) => {
+  const appendOutbound = (message: OutboundMessage, messageId: string) => {
     counter.current += 1;
-    setEntries((prev) => [...prev, { id: `out-${counter.current}`, role: "outbound", message }]);
+    setEntries((prev) => [...prev, { id: messageId || `out-${counter.current}`, role: "outbound", message, reactions: [] }]);
   };
 
-  return { entries, appendOutbound };
+  const updateText = (messageId: string, text: string) => {
+    setEntries((prev) => prev.map((entry) => entry.id === messageId &&
+      (entry.message.kind === "text" || entry.message.kind === "interaction")
+      ? { ...entry, message: { ...entry.message, text } }
+      : entry));
+  };
+
+  const appendReaction = (messageId: string, emoji: string) => {
+    setEntries((prev) => prev.map((entry) => entry.id === messageId
+      ? { ...entry, reactions: [...new Set([...entry.reactions, emoji])] }
+      : entry));
+  };
+
+  return { entries, appendOutbound, updateText, appendReaction };
 };

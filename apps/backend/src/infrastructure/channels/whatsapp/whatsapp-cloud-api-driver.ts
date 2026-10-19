@@ -37,6 +37,7 @@ type CloudWebhookMessage = {
     readonly button_reply?: { readonly id?: string };
     readonly list_reply?: { readonly id?: string };
   };
+  readonly reaction?: { readonly message_id?: string; readonly emoji?: string };
   readonly image?: CloudMediaRef;
   readonly video?: CloudMediaRef;
   readonly audio?: CloudMediaRef;
@@ -71,6 +72,8 @@ export class WhatsAppCloudApiDriver implements ChannelDriver {
     menuLayouts: [],
     messageEditing: false,
     messageDeletion: false,
+    messageReactions: true,
+    messageReplies: true,
     typingIndicator: false,
     media: ["image", "video", "audio", "voice", "document", "sticker"],
     payments: [],
@@ -190,12 +193,22 @@ export class WhatsAppCloudApiDriver implements ChannelDriver {
     if (message.kind === "text") {
       return this.sendGraphMessage(recipient.externalId, {
         type: "text",
-        text: { preview_url: false, body: message.format === "html" ? htmlToPlainText(message.text) : message.text }
+        text: { preview_url: false, body: message.format === "html" ? htmlToPlainText(message.text) : message.text },
+        ...(message.replyToMessageId ? { context: { message_id: message.replyToMessageId } } : {})
       });
     }
     if (message.kind === "interaction") return this.sendInteraction(recipient.externalId, message);
     if (message.kind === "media") return this.sendMedia(recipient.externalId, message);
     throw new Error("[whatsapp-cloud] Invoices are not supported by the Cloud API adapter.");
+  }
+
+  async reactMessage(recipient: ChannelRecipient, externalMessageId: string, emoji: string): Promise<void> {
+    if (!/^(?:👍|❤️|😂|😮|😢|🙏)$/.test(emoji)) throw new Error("Unsupported reaction emoji.");
+    await this.assertCustomerServiceWindow(recipient.externalId);
+    await this.sendGraphMessage(recipient.externalId, {
+      type: "reaction",
+      reaction: { message_id: externalMessageId, emoji }
+    });
   }
 
   async resolveMedia(media: MediaPayload): Promise<MediaPayload> {
@@ -237,6 +250,7 @@ export class WhatsAppCloudApiDriver implements ChannelDriver {
     if (message.actions.length > 0 && message.actions.length <= 3) {
       return this.sendGraphMessage(recipient, {
         type: "interactive",
+        ...(message.replyToMessageId ? { context: { message_id: message.replyToMessageId } } : {}),
         interactive: {
           type: "button",
           body: { text },
@@ -254,7 +268,8 @@ export class WhatsAppCloudApiDriver implements ChannelDriver {
     const options = message.actions.map((action, index) => `${index + 1}. ${action.label}`).join("\n");
     return this.sendGraphMessage(recipient, {
       type: "text",
-      text: { preview_url: false, body: `${text}\n\nReply with:\n${options}` }
+      text: { preview_url: false, body: `${text}\n\nReply with:\n${options}` },
+      ...(message.replyToMessageId ? { context: { message_id: message.replyToMessageId } } : {})
     });
   }
 
@@ -285,7 +300,11 @@ export class WhatsAppCloudApiDriver implements ChannelDriver {
     const body: Record<string, unknown> = { ...source };
     if (media.kind === "document") body.filename = media.filename ?? "file";
     if (message.caption && ["image", "video", "document"].includes(media.kind)) body.caption = message.caption;
-    return this.sendGraphMessage(recipient, { type: media.kind === "voice" ? "audio" : media.kind, [media.kind === "voice" ? "audio" : media.kind]: body });
+    return this.sendGraphMessage(recipient, {
+      type: media.kind === "voice" ? "audio" : media.kind,
+      [media.kind === "voice" ? "audio" : media.kind]: body,
+      ...(message.replyToMessageId ? { context: { message_id: message.replyToMessageId } } : {})
+    });
   }
 
   private async uploadMedia(bytes: Uint8Array, mimeType: string): Promise<string> {
@@ -359,6 +378,16 @@ export class WhatsAppCloudApiDriver implements ChannelDriver {
 
     const actionId = message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id;
     if (actionId) return { kind: "action", channel: "whatsapp", identity, actionId, timestamp };
+    if (message.reaction?.message_id && message.reaction.emoji) {
+      return {
+        kind: "reaction",
+        channel: "whatsapp",
+        identity,
+        targetMessageId: message.reaction.message_id,
+        emoji: message.reaction.emoji,
+        timestamp
+      };
+    }
 
     const media = this.mapMedia(message);
     if (media) {

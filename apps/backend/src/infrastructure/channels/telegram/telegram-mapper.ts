@@ -20,6 +20,19 @@ const COMMANDS: Record<string, Command> = {
 };
 
 export interface TelegramUpdateShape {
+  readonly edited_message?: {
+    readonly message_id?: number;
+    readonly from?: { readonly id?: number; readonly is_bot?: boolean };
+    readonly chat?: { readonly id?: number };
+    readonly date?: number;
+    readonly text?: string;
+  };
+  readonly message_reaction?: {
+    readonly chat?: { readonly id?: number };
+    readonly message_id?: number;
+    readonly date?: number;
+    readonly new_reaction?: readonly { readonly type?: string; readonly emoji?: string }[];
+  };
   readonly message?: {
     readonly message_id?: number;
     readonly from?: { readonly id?: number; readonly is_bot?: boolean };
@@ -27,6 +40,7 @@ export interface TelegramUpdateShape {
     readonly date?: number;
     readonly text?: string;
     readonly caption?: string;
+    readonly reply_to_message?: { readonly message_id?: number };
     // ─── media ───
     readonly photo?: readonly { readonly file_id: string; readonly file_size?: number }[];
     readonly video?: { readonly file_id: string; readonly mime_type?: string; readonly file_size?: number; readonly duration?: number };
@@ -67,6 +81,21 @@ export const mapTelegramInbound = (raw: unknown): InboundEvent | undefined => {
   const update = raw as TelegramUpdateShape;
   const channel: ChannelType = "telegram";
 
+  const reaction = update.message_reaction;
+  if (reaction?.chat?.id && reaction.message_id !== undefined) {
+    const emoji = reaction.new_reaction?.find((entry) => entry.type === "emoji")?.emoji ?? "";
+    if (emoji) {
+      return {
+        kind: "reaction",
+        channel,
+        identity: identityFor(String(reaction.chat.id)),
+        targetMessageId: String(reaction.message_id),
+        emoji,
+        timestamp: new Date(seconds(reaction.date) * 1000)
+      };
+    }
+  }
+
   const callback = update.callback_query;
   if (callback?.data && callback.message?.chat?.id && !callback.from?.is_bot) {
     return {
@@ -74,6 +103,19 @@ export const mapTelegramInbound = (raw: unknown): InboundEvent | undefined => {
       identity: identityFor(String(callback.message.chat.id)),
       actionId: callback.data,
       timestamp: new Date(seconds(callback.message.date) * 1000)
+    };
+  }
+
+  const editedMessage = update.edited_message;
+  if (editedMessage?.chat?.id && editedMessage.message_id !== undefined &&
+    editedMessage.text !== undefined && !editedMessage.from?.is_bot) {
+    return {
+      kind: "edit",
+      channel,
+      identity: identityFor(String(editedMessage.chat.id)),
+      targetMessageId: String(editedMessage.message_id),
+      text: editedMessage.text,
+      timestamp: new Date(seconds(editedMessage.date) * 1000)
     };
   }
 
@@ -94,7 +136,13 @@ export const mapTelegramInbound = (raw: unknown): InboundEvent | undefined => {
       channel,
       identity,
       externalMessageId,
-      content: { kind: "text", text: message.text },
+      content: {
+        kind: "text",
+        text: message.text,
+        replyToMessageId: message.reply_to_message?.message_id === undefined
+          ? undefined
+          : String(message.reply_to_message.message_id)
+      },
       timestamp
     };
   }
@@ -107,7 +155,14 @@ export const mapTelegramInbound = (raw: unknown): InboundEvent | undefined => {
       channel,
       identity,
       externalMessageId,
-      content: { kind: "media", media, caption: message.caption },
+      content: {
+        kind: "media",
+        media,
+        caption: message.caption,
+        replyToMessageId: message.reply_to_message?.message_id === undefined
+          ? undefined
+          : String(message.reply_to_message.message_id)
+      },
       timestamp
     };
   }

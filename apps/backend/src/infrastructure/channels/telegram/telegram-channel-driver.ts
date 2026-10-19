@@ -12,11 +12,13 @@ import { escapeHtml } from "@anonymous-chat/shared/rich-text";
 export interface TelegramBotBridge {
     connect(): Promise<void>;
     onMessage(handler: (raw: unknown) => void): void;
-    sendText(chatId: string, text: string, format?: "html"): Promise<string | undefined>;
+    sendText(chatId: string, text: string, format?: "html", replyToMessageId?: string): Promise<string | undefined>;
     sendTyping?(chatId: string): Promise<void>;
-    sendButtons?(chatId: string, text: string, actions: readonly { id: string; label: string; url?: string }[], format?: "html"): Promise<string | undefined>;
-    sendMedia?(chatId: string, media: MediaPayload, caption?: string): Promise<string | undefined>;
+    sendButtons?(chatId: string, text: string, actions: readonly { id: string; label: string; url?: string }[], format?: "html", replyToMessageId?: string): Promise<string | undefined>;
+    sendMedia?(chatId: string, media: MediaPayload, caption?: string, replyToMessageId?: string): Promise<string | undefined>;
     deleteMessage?(chatId: string, messageId: string): Promise<void>;
+    editMessage?(chatId: string, messageId: string, text: string, format?: "html"): Promise<void>;
+    reactMessage?(chatId: string, messageId: string, emoji: string): Promise<void>;
     resolveMediaUrl?(fileId: string): Promise<string | undefined>;
     downloadMedia?(fileId: string): Promise<Uint8Array | undefined>;
     close(): Promise<void>;
@@ -29,8 +31,10 @@ export class TelegramChannelDriver implements ChannelDriver {
         buttons: true,
         menus: true,
         menuLayouts: ["rows", "grid"],
-        messageEditing: false,
+        messageEditing: true,
         messageDeletion: true,
+        messageReactions: true,
+        messageReplies: true,
         typingIndicator: true,
         media: ["image", "video", "voice", "audio", "document", "sticker"],
         payments: [],
@@ -48,7 +52,8 @@ export class TelegramChannelDriver implements ChannelDriver {
         this.bot.onMessage((raw) => {
             const event = this.mapInbound(raw);
             if (!event) return;
-            void receiver(this.resolvePendingAction(event));
+            void receiver(this.resolvePendingAction(event))
+                .catch((error: unknown) => console.error("[telegram] Inbound event processing failed.", error));
         });
         await this.bot.connect();
     }
@@ -67,6 +72,17 @@ export class TelegramChannelDriver implements ChannelDriver {
         await this.bot.deleteMessage(recipient.externalId, externalMessageId);
     }
 
+    async editMessage(recipient: ChannelRecipient, externalMessageId: string, message: OutboundMessage): Promise<void> {
+        if (!this.bot.editMessage) throw new Error("Telegram bridge does not implement message editing.");
+        if (message.kind !== "text") throw new Error("Telegram edits currently support text messages only.");
+        await this.bot.editMessage(recipient.externalId, externalMessageId, message.text, message.format);
+    }
+
+    async reactMessage(recipient: ChannelRecipient, externalMessageId: string, emoji: string): Promise<void> {
+        if (!this.bot.reactMessage) throw new Error("Telegram bridge does not implement message reactions.");
+        await this.bot.reactMessage(recipient.externalId, externalMessageId, emoji);
+    }
+
     buildDeepLink(payload: string): string {
         // Filled in at runtime by the bridge, but the shape is stable.
         return `https://t.me/${(this.bot as { username?: string }).username ?? "your_bot"}?start=${encodeURIComponent(payload)}`;
@@ -74,18 +90,23 @@ export class TelegramChannelDriver implements ChannelDriver {
 
     async sendMessage(recipient: ChannelRecipient, message: OutboundMessage): Promise<string | undefined> {
         if (message.kind === "text") {
-            return this.bot.sendText(recipient.externalId, message.text, message.format);
+            return this.bot.sendText(recipient.externalId, message.text, message.format, message.replyToMessageId);
         }
 
         if (message.kind === "interaction") {
             if (this.bot.sendButtons) {
-                return this.bot.sendButtons(recipient.externalId, message.text, message.actions, message.format);
+                return this.bot.sendButtons(recipient.externalId, message.text, message.actions, message.format, message.replyToMessageId);
             }
             this.pendingActions.set(recipient.externalId, message.actions);
             const options = message.actions.map((action, index) =>
                 `${index + 1}. ${message.format === "html" ? escapeHtml(action.label) : action.label}`
             ).join("\n");
-            return this.bot.sendText(recipient.externalId, `${message.text}\n\n${options}`, message.format);
+            return this.bot.sendText(
+                recipient.externalId,
+                `${message.text}\n\n${options}`,
+                message.format,
+                message.replyToMessageId
+            );
         }
 
         if (message.kind === "media") {
@@ -97,7 +118,7 @@ export class TelegramChannelDriver implements ChannelDriver {
                 console.warn(`[telegram] Dropping unsupported media kind: ${message.media.kind}`);
                 return undefined;
             }
-            return this.bot.sendMedia(recipient.externalId, message.media, message.caption);
+            return this.bot.sendMedia(recipient.externalId, message.media, message.caption, message.replyToMessageId);
         }
 
         if (message.kind === "invoice") {

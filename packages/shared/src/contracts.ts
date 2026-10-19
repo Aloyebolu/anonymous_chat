@@ -5,7 +5,9 @@ import type { UserProfile } from "./domain.js";
 export type WebOutboundMessage = Extract<OutboundMessage, { readonly kind: "text" | "interaction" | "media" }>;
 export type WebStreamEvent =
   | (WebOutboundMessage & { readonly messageId: string })
-  | { readonly kind: "delete"; readonly messageId: string };
+  | { readonly kind: "delete"; readonly messageId: string }
+  | { readonly kind: "edit"; readonly messageId: string; readonly text: string; readonly format?: "html" }
+  | { readonly kind: "reaction"; readonly messageId: string; readonly emoji: string; readonly userId?: string };
 export type MiniAppProfile = Pick<
   UserProfile,
   "gender" | "country" | "preferredGender" | "preferredCountry" | "displayName" |

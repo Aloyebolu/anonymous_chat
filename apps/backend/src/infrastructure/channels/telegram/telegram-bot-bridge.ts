@@ -1,4 +1,5 @@
 import { Telegraf } from "telegraf";
+import type { TelegramEmoji } from "@telegraf/types";
 import type { TelegramBotBridge } from "./telegram-channel-driver.js";
 import { MediaPayload } from "../../../ports/channels.js";
 
@@ -35,10 +36,16 @@ export class TelegramBotBridgeImpl implements TelegramBotBridge {
         bot.on("message", (ctx) => {
             if (!this.closing) this.messageHandler?.(ctx.update);
         });
+        bot.on("edited_message", (ctx) => {
+            if (!this.closing) this.messageHandler?.(ctx.update);
+        });
         bot.on("callback_query", (ctx) => {
             if (this.closing) return;
             this.messageHandler?.(ctx.update);
             void ctx.answerCbQuery().catch((err: unknown) => console.warn("[telegram] Callback acknowledgement failed.", err));
+        });
+        bot.on("message_reaction", (ctx) => {
+            if (!this.closing) this.messageHandler?.(ctx.update);
         });
         bot.catch((err) => console.error("[telegram] Update handler failed.", err));
         void bot.telegram.setMyCommands([
@@ -62,7 +69,7 @@ export class TelegramBotBridgeImpl implements TelegramBotBridge {
         let attempt = 0;
         while (!this.closing) {
             try {
-                await bot.launch();
+                await bot.launch({ allowedUpdates: ["message", "edited_message", "callback_query", "message_reaction"] });
                 return;
             } catch (err) {
                 if (this.closing) return;
@@ -81,9 +88,13 @@ export class TelegramBotBridgeImpl implements TelegramBotBridge {
         }
     }
 
-    async sendText(chatId: string, text: string, format?: "html"): Promise<string | undefined> {
+    async sendText(chatId: string, text: string, format?: "html", replyToMessageId?: string): Promise<string | undefined> {
         if (!this.bot) throw new Error("Telegram bot is not connected.");
-        const sent = await this.bot.telegram.sendMessage(chatId, text, format === "html" ? { parse_mode: "HTML" } : undefined);
+        const reply = replyToMessageId ? { reply_parameters: { message_id: Number(replyToMessageId) } } : {};
+        const sent = await this.bot.telegram.sendMessage(chatId, text, {
+            ...reply,
+            ...(format === "html" ? { parse_mode: "HTML" as const } : {})
+        });
         return String(sent.message_id);
     }
 
@@ -97,7 +108,7 @@ export class TelegramBotBridgeImpl implements TelegramBotBridge {
         }
     }
 
-    async sendMedia(chatId: string, media: MediaPayload, caption?: string): Promise<string | undefined> {
+    async sendMedia(chatId: string, media: MediaPayload, caption?: string, replyToMessageId?: string): Promise<string | undefined> {
         if (!this.bot) throw new Error("Telegram bot is not connected.");
 
         // Telegram accepts file_id, URL, or a stream as the "source" argument.
@@ -105,7 +116,10 @@ export class TelegramBotBridgeImpl implements TelegramBotBridge {
         const source = media.channelRef ?? media.url ?? media.bytes;
         if (!source) throw new Error("MediaPayload has no channelRef, url, or bytes.");
 
-        const opts = caption ? { caption } : undefined;
+        const opts = {
+            ...(caption ? { caption } : {}),
+            ...(replyToMessageId ? { reply_parameters: { message_id: Number(replyToMessageId) } } : {})
+        };
 
         switch (media.kind) {
             case "image":
@@ -154,7 +168,8 @@ export class TelegramBotBridgeImpl implements TelegramBotBridge {
         chatId: string,
         text: string,
         actions: readonly { id: string; label: string; url?: string }[],
-        format?: "html"
+        format?: "html",
+        replyToMessageId?: string
     ): Promise<string | undefined> {
         if (!this.bot) throw new Error("Telegram bot is not connected.");
         const sent = await this.bot.telegram.sendMessage(chatId, text, {
@@ -163,6 +178,7 @@ export class TelegramBotBridgeImpl implements TelegramBotBridge {
                     ? ({ text: action.label, web_app: { url: action.url } })
                     : ({ text: action.label, callback_data: action.id }))]
             },
+            ...(replyToMessageId ? { reply_parameters: { message_id: Number(replyToMessageId) } } : {}),
             ...(format === "html" ? { parse_mode: "HTML" as const } : {})
         });
         return String(sent.message_id);
@@ -175,6 +191,31 @@ export class TelegramBotBridgeImpl implements TelegramBotBridge {
             throw new Error("Invalid Telegram message ID.");
         }
         await this.bot.telegram.deleteMessage(chatId, parsedMessageId);
+    }
+
+    async editMessage(chatId: string, messageId: string, text: string, format?: "html"): Promise<void> {
+        if (!this.bot) throw new Error("Telegram bot is not connected.");
+        const parsedMessageId = Number(messageId);
+        if (!Number.isSafeInteger(parsedMessageId) || parsedMessageId <= 0) throw new Error("Invalid Telegram message ID.");
+        await this.bot.telegram.editMessageText(chatId, parsedMessageId, undefined, text,
+            format === "html" ? { parse_mode: "HTML" } : undefined);
+    }
+
+    async reactMessage(chatId: string, messageId: string, emoji: string): Promise<void> {
+        if (!this.bot) throw new Error("Telegram bot is not connected.");
+        const parsedMessageId = Number(messageId);
+        if (!Number.isSafeInteger(parsedMessageId) || parsedMessageId <= 0) throw new Error("Invalid Telegram message ID.");
+        const telegramEmoji: Record<string, TelegramEmoji> = {
+            "👍": "👍",
+            "❤️": "❤",
+            "😂": "🤣",
+            "😮": "😱",
+            "😢": "😢",
+            "🙏": "🙏"
+        };
+        const normalizedEmoji = telegramEmoji[emoji];
+        if (!normalizedEmoji) throw new Error("Unsupported Telegram reaction emoji.");
+        await this.bot.telegram.setMessageReaction(chatId, parsedMessageId, [{ type: "emoji", emoji: normalizedEmoji }]);
     }
 
     async close(): Promise<void> {

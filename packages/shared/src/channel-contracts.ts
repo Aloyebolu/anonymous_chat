@@ -11,6 +11,8 @@ export interface ChannelCapabilities {
   readonly menuLayouts: readonly MenuLayout[];
   readonly messageEditing: boolean;
   readonly messageDeletion: boolean;
+  readonly messageReactions: boolean;
+  readonly messageReplies: boolean;
   readonly typingIndicator: boolean;
   readonly media: readonly MediaKind[];
   readonly payments: readonly Currency[];
@@ -34,8 +36,8 @@ export interface MediaPayload {
 }
 
 export type MessageContent =
-  | { readonly kind: "text"; readonly text: string }
-  | { readonly kind: "media"; readonly media: MediaPayload; readonly caption?: string };
+  | { readonly kind: "text"; readonly text: string; readonly replyToMessageId?: string }
+  | { readonly kind: "media"; readonly media: MediaPayload; readonly caption?: string; readonly replyToMessageId?: string };
 
 export interface OutboundAction {
   readonly id: string;
@@ -48,6 +50,8 @@ export interface OutboundText {
   readonly text: string;
   readonly format?: "html";
   readonly silent?: boolean;
+  readonly replyToMessageId?: string;
+  readonly sourceMessageId?: string;
 }
 
 export interface OutboundInteraction {
@@ -57,6 +61,8 @@ export interface OutboundInteraction {
   readonly format?: "html";
   readonly layout?: MenuLayout;
   readonly silent?: boolean;
+  readonly replyToMessageId?: string;
+  readonly sourceMessageId?: string;
 }
 
 export interface OutboundMedia {
@@ -64,6 +70,8 @@ export interface OutboundMedia {
   readonly media: MediaPayload;
   readonly caption?: string;
   readonly silent?: boolean;
+  readonly replyToMessageId?: string;
+  readonly sourceMessageId?: string;
 }
 
 export interface OutboundInvoice {
@@ -123,6 +131,22 @@ export type InboundEvent =
       readonly channel: ChannelType;
       readonly identity: CommunicationIdentity;
       readonly actionId: string;
+      readonly timestamp: Date;
+    }
+  | {
+      readonly kind: "reaction";
+      readonly channel: ChannelType;
+      readonly identity: CommunicationIdentity;
+      readonly targetMessageId: string;
+      readonly emoji: string;
+      readonly timestamp: Date;
+    }
+  | {
+      readonly kind: "edit";
+      readonly channel: ChannelType;
+      readonly identity: CommunicationIdentity;
+      readonly targetMessageId: string;
+      readonly text: string;
       readonly timestamp: Date;
     }
   | {

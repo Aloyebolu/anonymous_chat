@@ -7,7 +7,9 @@ export const API_PATHS = {
   whatsappWebhook: `${API_PREFIX}/webhooks/whatsapp`,
   web: {
     register: `${API_PREFIX}/web/register`,
-    login: `${API_PREFIX}/web/login`
+    login: `${API_PREFIX}/web/login`,
+    editMessage: `${API_PREFIX}/web/message/edit`,
+    reactMessage: `${API_PREFIX}/web/message/react`
   },
   admin: {
     state: `${API_PREFIX}/state`,

@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { STRINGS } from "@/lib/constants";
 
 export interface WebMediaUpload {
@@ -12,6 +12,8 @@ export interface WebMediaUpload {
 export interface ComposerProps {
   readonly onSend: (text: string) => void;
   readonly onSendMedia: (media: WebMediaUpload) => Promise<void>;
+  readonly context?: { readonly kind: "reply" | "edit"; readonly messageId: string; readonly preview: string };
+  readonly onCancelContext: () => void;
 }
 
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -51,11 +53,18 @@ const SendIcon = () => (
   </svg>
 );
 
-export const Composer = ({ onSend, onSendMedia }: ComposerProps) => {
+export const Composer = ({ onSend, onSendMedia, context, onCancelContext }: ComposerProps) => {
   const [text, setText] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const previousContextKind = useRef<"reply" | "edit" | undefined>(undefined);
+
+  useEffect(() => {
+    if (context?.kind === "edit") setText(context.preview);
+    else if (previousContextKind.current === "edit") setText("");
+    previousContextKind.current = context?.kind;
+  }, [context?.kind, context?.messageId, context?.preview]);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -90,12 +99,21 @@ export const Composer = ({ onSend, onSendMedia }: ComposerProps) => {
     <form className="cp-root" onSubmit={submit} aria-label="Message composer">
       <style>{CSS_TEXT}</style>
 
+      {context && (
+        <div className="cp-context">
+          <div>
+            <strong>{context.kind === "edit" ? "Editing message" : "Replying to message"}</strong>
+            <span>{context.preview}</span>
+          </div>
+          <button type="button" onClick={() => { if (context.kind === "edit") setText(""); onCancelContext(); }} aria-label="Cancel reply or edit">×</button>
+        </div>
+      )}
       <div className={`cp-bar${error ? " cp-bar-error" : ""}`}>
         <button
           type="button"
           className="cp-attach"
           onClick={() => fileRef.current?.click()}
-          disabled={uploading}
+          disabled={uploading || context?.kind === "edit"}
           aria-label="Attach a photo, video, audio file, or document"
           title="Attach"
         >
@@ -106,7 +124,7 @@ export const Composer = ({ onSend, onSendMedia }: ComposerProps) => {
           type="file"
           className="cp-file"
           accept="image/*,video/*,audio/*,.pdf,.txt"
-          disabled={uploading}
+          disabled={uploading || context?.kind === "edit"}
           onChange={(event) => void upload(event)}
           tabIndex={-1}
         />
@@ -140,6 +158,15 @@ export const Composer = ({ onSend, onSendMedia }: ComposerProps) => {
 const CSS_TEXT = `
 .cp-root { display:flex; flex-direction:column; gap:6px; width:100%; }
 .cp-root * { box-sizing:border-box; }
+.cp-context {
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:8px 12px; border-left:3px solid #6366f1; border-radius:10px;
+  background:rgba(99,102,241,.08); color:#334155; font-size:12px;
+}
+.cp-context > div { display:flex; flex-direction:column; min-width:0; gap:2px; }
+.cp-context span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; opacity:.75; }
+.cp-context button { border:0; background:transparent; color:inherit; font-size:20px; cursor:pointer; }
+@media (prefers-color-scheme: dark) { .cp-context { background:rgba(129,140,248,.12); color:#cbd5e1; } }
 
 .cp-bar {
   display:flex; align-items:center; gap:6px;

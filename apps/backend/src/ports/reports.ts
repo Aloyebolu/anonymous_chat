@@ -11,6 +11,7 @@ export interface MessageLogRepository {
   unwatch(conversationId: ConversationId): void;
   isWatched(conversationId: ConversationId): boolean;
   append(entry: MessageLogEntry): void;
+  update(entry: MessageLogEntry): void;
   entriesFor(conversationId: ConversationId): readonly MessageLogEntry[];
   watchedConversations(): readonly ConversationId[];
 }

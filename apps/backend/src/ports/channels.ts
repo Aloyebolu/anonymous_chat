@@ -34,6 +34,8 @@ export interface ChannelDriver {
   sendMessage(recipient: ChannelRecipient, message: OutboundMessage): Promise<string | undefined>;
   sendTyping?(recipient: ChannelRecipient): Promise<void>;
   editMessage?(recipient: ChannelRecipient, externalMessageId: string, message: OutboundMessage): Promise<void>;
+  reactMessage?(recipient: ChannelRecipient, externalMessageId: string, emoji: string): Promise<void>;
+  notifyReaction?(recipient: ChannelRecipient, externalMessageId: string, emoji: string, userId?: string): Promise<void>;
   deleteMessage?(recipient: ChannelRecipient, externalMessageId: string): Promise<void>;
   buildDeepLink?(payload: string): string;
   resolveMedia?(media: MediaPayload): Promise<MediaPayload>;

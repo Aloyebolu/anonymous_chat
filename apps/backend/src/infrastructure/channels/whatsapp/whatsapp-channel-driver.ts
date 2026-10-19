@@ -24,9 +24,11 @@ export type BridgeMedia =
 export interface BaileysSocketBridge {
   connect(): Promise<void>;
   onMessage(handler: (raw: unknown) => void): void;
-  sendText(jid: string, text: string): Promise<string | undefined>;
+  sendText(jid: string, text: string, replyToMessageId?: string): Promise<string | undefined>;
+  editMessage?(jid: string, messageId: string, text: string): Promise<void>;
+  reactMessage?(jid: string, messageId: string, emoji: string): Promise<void>;
   /** Media is passed already normalized to `BridgeMedia`. */
-  sendMedia?(jid: string, media: BridgeMedia): Promise<string | undefined>;
+  sendMedia?(jid: string, media: BridgeMedia, replyToMessageId?: string): Promise<string | undefined>;
   sendTyping?(jid: string): Promise<void>;
   sendButtons?(jid: string, text: string, actions: readonly { id: string; label: string }[]): Promise<string | undefined>;
   deleteMessage?(jid: string, messageId: string): Promise<void>;
@@ -50,8 +52,10 @@ export class WhatsAppChannelDriver implements ChannelDriver {
       buttons: false,
       menus: false,
       menuLayouts: [],
-      messageEditing: false,
+      messageEditing: true,
       messageDeletion: true,
+      messageReactions: true,
+      messageReplies: true,
       typingIndicator: true,
       media: ["image", "video", "audio", "document", "voice" , "sticker"],
       payments: [],
@@ -84,6 +88,17 @@ export class WhatsAppChannelDriver implements ChannelDriver {
     await this.socket.deleteMessage(recipient.externalId, externalMessageId);
   }
 
+  async editMessage(recipient: ChannelRecipient, externalMessageId: string, message: OutboundMessage): Promise<void> {
+    if (!this.socket.editMessage) throw new Error("WhatsApp bridge does not implement message editing.");
+    if (message.kind !== "text") throw new Error("WhatsApp edits currently support text messages only.");
+    await this.socket.editMessage(recipient.externalId, externalMessageId, message.text);
+  }
+
+  async reactMessage(recipient: ChannelRecipient, externalMessageId: string, emoji: string): Promise<void> {
+    if (!this.socket.reactMessage) throw new Error("WhatsApp bridge does not implement message reactions.");
+    await this.socket.reactMessage(recipient.externalId, externalMessageId, emoji);
+  }
+
   /**
    * Cross-channel forwarding hook. WhatsApp inbound media arrives from Baileys
    * as a downloadable message object, not a URL — resolving it properly requires
@@ -103,7 +118,7 @@ export class WhatsAppChannelDriver implements ChannelDriver {
     }
     if (message.kind === "text") {
       const text = message.format === "html" ? htmlToPlainText(message.text) : message.text;
-      return this.socket.sendText(recipient.externalId, text);
+      return this.socket.sendText(recipient.externalId, text, message.replyToMessageId);
     }
 
     if (message.kind === "media") {
@@ -118,7 +133,7 @@ export class WhatsAppChannelDriver implements ChannelDriver {
       this.pendingActions.set(recipient.externalId, message.actions);
       const text = message.format === "html" ? htmlToPlainText(message.text) : message.text;
       const numbered = message.actions.map((a, i) => `${i + 1}. ${a.label}`).join("\n");
-      return this.socket.sendText(recipient.externalId, `${text}\n\nReply with:\n${numbered}`);
+      return this.socket.sendText(recipient.externalId, `${text}\n\nReply with:\n${numbered}`, message.replyToMessageId);
     }
 
     console.warn(`[whatsapp] Dropping unsupported outbound kind: ${message.kind}`);
@@ -155,7 +170,7 @@ export class WhatsAppChannelDriver implements ChannelDriver {
     }
 
     const bridgeMedia = this.toBridgeMedia(message);
-    return this.socket.sendMedia(recipient.externalId, bridgeMedia);
+    return this.socket.sendMedia(recipient.externalId, bridgeMedia, message.replyToMessageId);
   }
 
   private toBridgeMedia(
