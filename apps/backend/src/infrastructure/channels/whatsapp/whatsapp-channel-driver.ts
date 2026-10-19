@@ -98,6 +98,9 @@ export class WhatsAppChannelDriver implements ChannelDriver {
   }
 
   async sendMessage(recipient: ChannelRecipient, message: OutboundMessage): Promise<string | undefined> {
+    if (recipient.externalId.endsWith("@g.us") || recipient.externalId === "status@broadcast") {
+      throw new Error("[whatsapp] Group and status sends are disabled.");
+    }
     if (message.kind === "text") {
       const text = message.format === "html" ? htmlToPlainText(message.text) : message.text;
       return this.socket.sendText(recipient.externalId, text);

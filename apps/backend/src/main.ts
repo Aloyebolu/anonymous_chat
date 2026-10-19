@@ -9,6 +9,7 @@ import { RegexModerationService } from "./infrastructure/moderation/regex-modera
 import { BaileysSocketBridgeImpl } from "./infrastructure/channels/whatsapp/baileys-socket-bridge.js";
 import { WhatsAppChannelDriver } from "./infrastructure/channels/whatsapp/whatsapp-channel-driver.js";
 import { mapBaileysInbound } from "./infrastructure/channels/whatsapp/baileys-mapper.js";
+import { WhatsAppCloudApiDriver } from "./infrastructure/channels/whatsapp/whatsapp-cloud-api-driver.js";
 import { WebChannelDriver } from "./infrastructure/channels/web/web-channel-driver.js";
 import { Pool } from "pg";
 import { PostgresDatabase } from "./infrastructure/persistence/postgres-database.js";
@@ -42,7 +43,8 @@ const AI_URL = process.env.AI_URL || (IS_DEVELOPMENT ? undefined : "http://local
 
 const WHATSAPP_ENABLED = IS_DEVELOPMENT
   ? process.env.ENABLE_WHATSAPP === "1"
-  : process.env.DISABLE_WHATSAPP !== "1";
+  : process.env.ENABLE_WHATSAPP === "1" && process.env.DISABLE_WHATSAPP !== "1";
+const WHATSAPP_PROVIDER = process.env.WHATSAPP_PROVIDER ?? "baileys";
 const TELEGRAM_ENABLED = IS_DEVELOPMENT
   ? process.env.ENABLE_TELEGRAM === "1"
   : process.env.DISABLE_TELEGRAM !== "1";
@@ -92,6 +94,18 @@ async function main(): Promise<void> {
 
   const web = new WebChannelDriver({ port: HTTP_PORT, host: HTTP_HOST }, users);
   registry.register(web);
+  if (WHATSAPP_PROVIDER !== "baileys" && WHATSAPP_PROVIDER !== "cloud-api") {
+    throw new Error("WHATSAPP_PROVIDER must be either 'baileys' or 'cloud-api'.");
+  }
+  const cloudApi = WHATSAPP_ENABLED && WHATSAPP_PROVIDER === "cloud-api"
+    ? new WhatsAppCloudApiDriver({
+        accessToken: process.env.WHATSAPP_CLOUD_ACCESS_TOKEN ?? "",
+        appSecret: process.env.META_APP_SECRET ?? "",
+        verifyToken: process.env.WHATSAPP_CLOUD_VERIFY_TOKEN ?? "",
+        phoneNumberId: process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID ?? "",
+        apiVersion: process.env.WHATSAPP_CLOUD_API_VERSION ?? ""
+      }, fetch, users)
+    : undefined;
 
   // ---- Application ---------------------------------------------------------
   const matching = new MatchmakingService(users, queue, conversations, MATCHMAKING_CONFIG);
@@ -123,6 +137,7 @@ async function main(): Promise<void> {
     await app.receive(event);
     await admin.publishLiveUpdates().catch((error) => console.error("[admin] Live update publish failed.", error));
   };
+  if (cloudApi) await cloudApi.start(receive);
 
   let miniApp: MiniAppServer | undefined;
   if (TELEGRAM_TOKEN && (!IS_DEVELOPMENT || TELEGRAM_ENABLED)) {
@@ -132,12 +147,19 @@ async function main(): Promise<void> {
 
   // ---- Start non-chat infrastructure first --------------------------------
   await web.start(receive, (req, res) => {
-    const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
-    if (pathname.startsWith(API_PATHS.miniApp.prefix) && miniApp) {
-      void miniApp.handleRequest(req, res);
-      return;
-    }
-    void admin.handleRequest(req, res);
+    void (async () => {
+      if (cloudApi && await cloudApi.handleHttpRequest(req, res)) return;
+      const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+      if (pathname.startsWith(API_PATHS.miniApp.prefix) && miniApp) {
+        await miniApp.handleRequest(req, res);
+        return;
+      }
+      await admin.handleRequest(req, res);
+    })().catch((error) => {
+      console.error("[http] Request handler failed.", error);
+      if (!res.headersSent) res.statusCode = 500;
+      if (!res.writableEnded) res.end("Internal server error.");
+    });
   });
   admin.attachWebSocket(web.httpServer);
 
@@ -159,15 +181,21 @@ async function main(): Promise<void> {
   // ---- WhatsApp ------------------------------------------------------------
   let whatsapp: WhatsAppChannelDriver | undefined;
   if (WHATSAPP_ENABLED) {
-    const bridge = new BaileysSocketBridgeImpl({ authDir: AUTH_DIR });
-    whatsapp = new WhatsAppChannelDriver(bridge, mapBaileysInbound);
-    await whatsapp.start(receive);
-    registry.register(whatsapp);
-    console.log(`WhatsApp driver started. Auth state in ${AUTH_DIR}.`);
+    if (cloudApi) {
+      registry.register(cloudApi);
+      console.log("WhatsApp Cloud API driver started.");
+    } else {
+      const bridge = new BaileysSocketBridgeImpl({ authDir: AUTH_DIR });
+      whatsapp = new WhatsAppChannelDriver(bridge, mapBaileysInbound);
+      await whatsapp.start(receive);
+      registry.register(whatsapp);
+      console.warn("[whatsapp] Baileys is an unofficial integration. Use a dedicated number; bans and disconnections cannot be ruled out.");
+      console.log(`WhatsApp Baileys driver started. Auth state in ${AUTH_DIR}.`);
+    }
   } else {
     console.log(IS_DEVELOPMENT
       ? "WhatsApp disabled in development (set ENABLE_WHATSAPP=1 to connect intentionally)."
-      : "WhatsApp disabled (DISABLE_WHATSAPP=1).");
+      : "WhatsApp disabled (set ENABLE_WHATSAPP=1 to connect intentionally).");
   }
 
   console.log("State stored in PostgreSQL.");
@@ -194,6 +222,7 @@ async function main(): Promise<void> {
 
     await Promise.allSettled([
       whatsapp?.stop(),
+      cloudApi?.stop(),
       telegram?.stop(),
       admin.close(),
       web.stop(),

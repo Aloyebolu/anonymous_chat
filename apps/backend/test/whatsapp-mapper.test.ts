@@ -91,4 +91,19 @@ describe("Baileys inbound mapper", () => {
     });
     expect(event).toBeUndefined();
   });
+
+  it("ignores WhatsApp group and status messages", () => {
+    const groupEvent = mapBaileysInbound({
+      key: { remoteJid: "12345@g.us", fromMe: false, id: "group-message" },
+      message: { conversation: "please respond in this group" },
+      messageTimestamp: 1700000000
+    });
+    const statusEvent = mapBaileysInbound({
+      key: { remoteJid: "status@broadcast", fromMe: false, id: "status-message" },
+      message: { conversation: "status update" },
+      messageTimestamp: 1700000000
+    });
+    expect(groupEvent).toBeUndefined();
+    expect(statusEvent).toBeUndefined();
+  });
 });

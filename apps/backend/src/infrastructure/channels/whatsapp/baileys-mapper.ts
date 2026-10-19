@@ -97,6 +97,7 @@ const extractMedia = (message: BaileysMessageShape): MediaPayload | undefined =>
 export const mapBaileysInbound = (raw: unknown): InboundEvent | undefined => {
   const message = raw as BaileysMessageShape;
   if (!message?.key?.remoteJid || !message.key.id) return undefined;
+  if (message.key.remoteJid.endsWith("@g.us") || message.key.remoteJid === "status@broadcast") return undefined;
   if (message.key.fromMe) return undefined;
 
   const channel: ChannelType = "whatsapp";

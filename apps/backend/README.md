@@ -1,8 +1,8 @@
-# Anonymous adult chat — Baileys WhatsApp runtime
+# Anonymous adult chat — WhatsApp integrations
 
-This is a small vertical slice for an adults-only anonymous chat service. The core
-application is channel-independent. Two channel drivers are wired in: a local web
-driver for development, and a Baileys WhatsApp driver for real use.
+This is an adults-only anonymous chat service. The core application is channel-independent.
+The WhatsApp integration supports Baileys for compatibility and an official Cloud API
+adapter for production deployments.
 
 ```
 Core application
@@ -15,7 +15,7 @@ generic channel port  (src/ports/channels.ts)
  │  channels/web)            │  whatsapp)                         │
  └───────────────────────────┴────────────────────────────────────┘
                              ↓
-                    Baileys socket bridge → WhatsApp
+                    Baileys socket bridge or Cloud API → WhatsApp
 ```
 
 Baileys types never leave the WhatsApp infrastructure folder. The application and domain
@@ -100,20 +100,48 @@ The web channel, admin API, and Telegram Mini App API share one HTTP port.
 Set `PORT` on Render; locally, the default is `3000` (`WEB_PORT` remains available
 as a local override).
 
-WhatsApp auth state remains separate under `.data/`. To test with a real
+Baileys auth state remains separate under `.data/`. To test with a real
 Telegram bot, explicitly set `ENABLE_TELEGRAM=1` and
 `TELEGRAM_BOT_TOKEN` in the local environment file; use a separate test bot since
 this sends real bot traffic. WhatsApp requires the separate explicit
 `ENABLE_WHATSAPP=1` flag and uses development-only auth state. Leave both flags
 at `0` for web-only development.
 
+## WhatsApp production safety
+
+Baileys is an unofficial WhatsApp Web integration. Its use can violate WhatsApp's
+terms and a linked number can be disconnected or banned; rate limiting does not
+remove that risk. Do not link a personal or otherwise important number. The code
+paces Baileys sends to one per second, bounds its pending send queue, and uses
+exponential reconnect backoff, but these are operational safeguards, not a ban
+guarantee. In production, WhatsApp is disabled unless `ENABLE_WHATSAPP=1` is set.
+
+The official Cloud API adapter is available but is not selected by default. To
+switch when a WhatsApp Business Platform number and Meta credentials are ready,
+configure `WHATSAPP_PROVIDER=cloud-api`, `ENABLE_WHATSAPP=1`,
+`WHATSAPP_CLOUD_ACCESS_TOKEN`, `WHATSAPP_CLOUD_PHONE_NUMBER_ID`,
+`WHATSAPP_CLOUD_VERIFY_TOKEN`, `META_APP_SECRET`, and
+`WHATSAPP_CLOUD_API_VERSION`. Configure Meta's webhook callback as
+`https://<backend-host>/api/webhooks/whatsapp`, subscribe to `messages`, and use
+the same verify token. The adapter verifies Meta's HMAC webhook signature,
+deduplicates webhook message IDs in-process, supports text, interactive replies
+and common media, and enforces the 24-hour customer-service window for
+free-form sends. Messages outside that window need an approved template; this
+adapter intentionally does not send templates.
+
+Review WhatsApp Business Platform policies and account eligibility for the
+service's use case before launch. The Cloud API lowers the risk associated with
+an unofficial linked-device client, but does not exempt a business from Meta's
+messaging, consent, or content rules.
+
 ## Running with WhatsApp
 
 `npm start` explicitly selects production mode and uses `DATABASE_URL` for
-PostgreSQL while keeping WhatsApp auth in `.data/`. Use `DISABLE_TELEGRAM=1` or
-`DISABLE_WHATSAPP=1` to disable a production channel.
+PostgreSQL. Set `ENABLE_WHATSAPP=1` to explicitly enable WhatsApp, and
+`DISABLE_WHATSAPP=1` to override it. Baileys remains the default provider unless
+`WHATSAPP_PROVIDER=cloud-api` is selected.
 
-Expected output:
+With `WHATSAPP_PROVIDER=baileys`, expected output:
 
 ```text
 Web chat available at http://localhost:3000/

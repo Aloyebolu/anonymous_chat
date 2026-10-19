@@ -18,7 +18,15 @@ export class BaileysSocketBridgeImpl implements BaileysSocketBridge {
   private sock?: WASocket;
   private messageHandler?: (raw: unknown) => void;
   private closing = false;
+  private connecting = false;
+  private reconnectTimer?: NodeJS.Timeout;
+  private reconnectAttempt = 0;
+  private lastOutboundAt = 0;
+  private outboundPending = 0;
+  private outboundTail: Promise<void> = Promise.resolve();
   private readonly inboundMedia = new Map<string, WAMessage>();
+  private static readonly MIN_SEND_INTERVAL_MS = 1_000;
+  private static readonly MAX_PENDING_SENDS = 100;
 
   constructor(private readonly options: BaileysBridgeOptions) {}
 
@@ -27,106 +35,120 @@ export class BaileysSocketBridgeImpl implements BaileysSocketBridge {
   }
 
   async connect(): Promise<void> {
-    const { state, saveCreds } = await useMultiFileAuthState(this.options.authDir);
-    const { version } = await fetchLatestBaileysVersion();
-    const sock = makeWASocket({
-      version,
-      auth: state,
-      browser: ["Anonymous Adult Chat", "Chrome", "1.0"]
-    });
-    this.sock = sock;
+    if (this.closing || this.connecting || this.sock) return;
+    this.connecting = true;
+    try {
+      const { state, saveCreds } = await useMultiFileAuthState(this.options.authDir);
+      const { version } = await fetchLatestBaileysVersion();
+      if (this.closing) return;
+      const sock = makeWASocket({
+        version,
+        auth: state,
+        browser: ["Anonymous Adult Chat", "Chrome", "1.0"]
+      });
+      this.sock = sock;
 
-    sock.ev.on("creds.update", saveCreds);
+      sock.ev.on("creds.update", saveCreds);
 
-    sock.ev.on("connection.update", (update) => {
-      const { connection, lastDisconnect, qr } = update;
-      if (qr) {
-        console.log("QR code available. Scan the QR code with WhatsApp:");
-        qrcode.generate(qr, { small: true });
-      }
-      if (connection === "open") {
-        console.log("Connected to WhatsApp.");
-      }
-      if (connection === "close") {
-        const statusCode = (
-          lastDisconnect?.error as { output?: { statusCode?: number } } | undefined
-        )?.output?.statusCode;
-        const loggedOut = statusCode === DisconnectReason.loggedOut;
-        if (!this.closing && !loggedOut) {
-          console.log("WhatsApp connection closed. Reconnecting…");
-          void this.connect();
+      sock.ev.on("connection.update", (update) => {
+        const { connection, lastDisconnect, qr } = update;
+        if (qr) {
+          console.log("QR code available. Scan the QR code with WhatsApp:");
+          qrcode.generate(qr, { small: true });
         }
-      }
-    });
-
-    sock.ev.on("messages.upsert", ({ messages, type }) => {
-      if (type !== "notify") return;
-      const handler = this.messageHandler;
-      if (!handler) return;
-      for (const message of messages) {
-        try {
-          if (message.key.id && hasMediaContent(message)) {
-            this.inboundMedia.set(message.key.id, message);
-            if (this.inboundMedia.size > 500) {
-              const oldest = this.inboundMedia.keys().next().value;
-              if (oldest) this.inboundMedia.delete(oldest);
-            }
+        if (connection === "open") {
+          this.reconnectAttempt = 0;
+          console.log("Connected to WhatsApp.");
+        }
+        if (connection === "close") {
+          const statusCode = (
+            lastDisconnect?.error as { output?: { statusCode?: number } } | undefined
+          )?.output?.statusCode;
+          this.sock = undefined;
+          const requiresReauthentication = statusCode === DisconnectReason.loggedOut ||
+            statusCode === DisconnectReason.connectionReplaced;
+          if (!this.closing && !requiresReauthentication) this.scheduleReconnect();
+          else if (requiresReauthentication) {
+            console.error("[baileys] Session logged out or replaced. Re-link the account before reconnecting.");
           }
-          handler(message);
-        } catch (error) {
-          console.error("Failed to handle inbound WhatsApp message.", error);
         }
-      }
-    });
+      });
+
+      sock.ev.on("messages.upsert", ({ messages, type }) => {
+        if (type !== "notify") return;
+        const handler = this.messageHandler;
+        if (!handler) return;
+        for (const message of messages) {
+          try {
+            if (message.key.id && hasMediaContent(message)) {
+              this.inboundMedia.set(message.key.id, message);
+              if (this.inboundMedia.size > 500) {
+                const oldest = this.inboundMedia.keys().next().value;
+                if (oldest) this.inboundMedia.delete(oldest);
+              }
+            }
+            handler(message);
+          } catch (error) {
+            console.error("Failed to handle inbound WhatsApp message.", error);
+          }
+        }
+      });
+    } finally {
+      this.connecting = false;
+    }
   }
 
   async sendText(jid: string, text: string): Promise<string | undefined> {
-    if (!this.sock) throw new Error("Baileys socket is not connected.");
-    const sent = await this.sock.sendMessage(jid, { text });
-    return sent?.key.id ?? undefined;
+    return this.enqueueOutbound(async () => {
+      if (!this.sock) throw new Error("Baileys socket is not connected.");
+      const sent = await this.sock.sendMessage(jid, { text });
+      return sent?.key.id ?? undefined;
+    });
   }
 
   async sendMedia(jid: string, media: BridgeMedia): Promise<string | undefined> {
-    if (!this.sock) throw new Error("Baileys socket is not connected.");
+    return this.enqueueOutbound(async () => {
+      if (!this.sock) throw new Error("Baileys socket is not connected.");
 
-    // Both variants (`url` and `data`) are accepted by Baileys directly.
-    const source =
-      "url" in media ? { url: media.url } : Buffer.from(media.data);
+      // Both variants (`url` and `data`) are accepted by Baileys directly.
+      const source =
+        "url" in media ? { url: media.url } : Buffer.from(media.data);
 
-    switch (media.type) {
-      case "image":
-        return (await this.sock.sendMessage(jid, {
-          image: source,
-          caption: media.caption,
-          mimetype: media.mimeType
-        }))?.key.id ?? undefined;
+      switch (media.type) {
+        case "image":
+          return (await this.sock.sendMessage(jid, {
+            image: source,
+            caption: media.caption,
+            mimetype: media.mimeType
+          }))?.key.id ?? undefined;
 
-      case "video":
-        return (await this.sock.sendMessage(jid, {
-          video: source,
-          caption: media.caption,
-          mimetype: media.mimeType,
-          gifPlayback: media.gifPlayback
-        }))?.key.id ?? undefined;
+        case "video":
+          return (await this.sock.sendMessage(jid, {
+            video: source,
+            caption: media.caption,
+            mimetype: media.mimeType,
+            gifPlayback: media.gifPlayback
+          }))?.key.id ?? undefined;
 
-      case "audio":
-        return (await this.sock.sendMessage(jid, {
-          audio: source,
-          mimetype: media.mimeType ?? "audio/mp4",
-          ptt: media.ptt ?? false
-        }))?.key.id ?? undefined;
+        case "audio":
+          return (await this.sock.sendMessage(jid, {
+            audio: source,
+            mimetype: media.mimeType ?? "audio/mp4",
+            ptt: media.ptt ?? false
+          }))?.key.id ?? undefined;
 
-      case "document":
-        return (await this.sock.sendMessage(jid, {
-          document: source,
-          mimetype: media.mimeType ?? "application/octet-stream",
-          fileName: media.filename ?? "file",
-          caption: media.caption
-        }))?.key.id ?? undefined;
+        case "document":
+          return (await this.sock.sendMessage(jid, {
+            document: source,
+            mimetype: media.mimeType ?? "application/octet-stream",
+            fileName: media.filename ?? "file",
+            caption: media.caption
+          }))?.key.id ?? undefined;
 
-      case "sticker":
-        return (await this.sock.sendMessage(jid, { sticker: source }))?.key.id ?? undefined;
-    }
+        case "sticker":
+          return (await this.sock.sendMessage(jid, { sticker: source }))?.key.id ?? undefined;
+      }
+    });
   }
 
   async deleteMessage(jid: string, messageId: string): Promise<void> {
@@ -155,7 +177,40 @@ export class BaileysSocketBridgeImpl implements BaileysSocketBridge {
 
   async close(): Promise<void> {
     this.closing = true;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = undefined;
     if (this.sock) await this.sock.end(undefined);
+    this.sock = undefined;
+  }
+
+  private enqueueOutbound<T>(send: () => Promise<T>): Promise<T> {
+    if (this.outboundPending >= BaileysSocketBridgeImpl.MAX_PENDING_SENDS) {
+      throw new Error("[baileys] Outbound queue is full; refusing to send another message.");
+    }
+    this.outboundPending += 1;
+    const result = this.outboundTail.then(async () => {
+      const waitMs = BaileysSocketBridgeImpl.MIN_SEND_INTERVAL_MS - (Date.now() - this.lastOutboundAt);
+      if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+      this.lastOutboundAt = Date.now();
+      return send();
+    });
+    this.outboundTail = result.then(() => undefined, () => undefined);
+    return result.finally(() => { this.outboundPending -= 1; });
+  }
+
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer || this.closing) return;
+    const exponentialDelay = Math.min(30_000 * 2 ** this.reconnectAttempt, 5 * 60_000);
+    const jitteredDelay = Math.round(exponentialDelay * (0.8 + Math.random() * 0.4));
+    this.reconnectAttempt += 1;
+    console.warn(`[baileys] Connection closed. Retrying in ${Math.ceil(jitteredDelay / 1000)} seconds.`);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = undefined;
+      void this.connect().catch((error) => {
+        console.error("[baileys] Reconnect attempt failed.", error);
+        this.scheduleReconnect();
+      });
+    }, jitteredDelay);
   }
 }
 

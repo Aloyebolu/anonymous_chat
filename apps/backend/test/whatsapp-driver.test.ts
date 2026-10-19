@@ -28,6 +28,16 @@ describe("WhatsApp channel driver", () => {
     expect(socket.sent).toEqual([{ jid: "a@s.whatsapp.net", text: "hi" }]);
   });
 
+  it("refuses outbound messages to WhatsApp groups", async () => {
+    const socket = new FakeSocket();
+    const driver = new WhatsAppChannelDriver(socket, mapBaileysInbound);
+    await expect(driver.sendMessage(
+      { channel: "whatsapp", externalId: "12345@g.us" },
+      { kind: "text", text: "not for a group" }
+    )).rejects.toThrow(/Group and status sends are disabled/);
+    expect(socket.sent).toHaveLength(0);
+  });
+
   it("deletes a previously sent message through Baileys", async () => {
     const socket = new FakeSocket();
     const driver = new WhatsAppChannelDriver(socket, mapBaileysInbound);

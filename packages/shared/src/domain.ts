@@ -45,6 +45,7 @@ export interface UserProfile {
   readonly moderatorLinkCodeExpiresAt?: string;
   readonly webPasswordSalt?: string;
   readonly webPasswordHash?: string;
+  readonly whatsappCloudLastInboundAt?: string;
   readonly webSessions?: readonly {
     readonly tokenHash: string;
     readonly expiresAt: string;

@@ -4,6 +4,7 @@ export const LOCAL_API_ORIGIN = "http://localhost:3000";
 export const API_PATHS = {
   send: `${API_PREFIX}/send`,
   stream: `${API_PREFIX}/stream`,
+  whatsappWebhook: `${API_PREFIX}/webhooks/whatsapp`,
   web: {
     register: `${API_PREFIX}/web/register`,
     login: `${API_PREFIX}/web/login`
