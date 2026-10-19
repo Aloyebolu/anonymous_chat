@@ -136,6 +136,20 @@ export class TelegramBotBridgeImpl implements TelegramBotBridge {
             return undefined;
         }
     }
+
+    async downloadMedia(fileId: string): Promise<Uint8Array | undefined> {
+        if (!this.bot) return undefined;
+        const link = await this.bot.telegram.getFileLink(fileId);
+        const response = await fetch(link.href);
+        if (!response.ok) throw new Error(`Telegram media download failed (${response.status}).`);
+        const contentLength = Number(response.headers.get("content-length"));
+        if (Number.isFinite(contentLength) && contentLength > 20 * 1024 * 1024) {
+            throw new Error("Telegram media exceeds the 20 MB download limit.");
+        }
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        if (bytes.byteLength > 20 * 1024 * 1024) throw new Error("Telegram media exceeds the 20 MB download limit.");
+        return bytes;
+    }
     async sendButtons(
         chatId: string,
         text: string,

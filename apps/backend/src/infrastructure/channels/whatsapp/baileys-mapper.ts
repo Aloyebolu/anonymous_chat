@@ -89,7 +89,7 @@ const extractMedia = (message: BaileysMessageShape): MediaPayload | undefined =>
     return { kind: "document", channelRef, mimeType: payload.documentMessage.mimetype, filename: payload.documentMessage.fileName, sizeBytes: asSize(payload.documentMessage.fileLength) };
   }
   if (payload.stickerMessage) {
-    return { kind: "sticker", channelRef, mimeType: payload.stickerMessage.mimetype, sizeBytes: asSize(payload.stickerMessage.fileLength) };
+    return { kind: "sticker", channelRef, mimeType: "image/webp", sizeBytes: asSize(payload.stickerMessage.fileLength) };
   }
   return undefined;
 };

@@ -2,6 +2,7 @@ import type { CommunicationIdentity, Conversation, ConversationId, Eligibility, 
 
 export interface UserRepository {
   findOrCreate(identity: Omit<CommunicationIdentity, "userId">): Promise<CommunicationIdentity>;
+  identityForChannelExternalId(channel: string, externalId: string): Promise<CommunicationIdentity | undefined>;
   identityFor(userId: UserId, preferredChannel?: string): Promise<CommunicationIdentity | undefined>;
   allIdentities(): Promise<readonly CommunicationIdentity[]>;
   claimModeratorIdentity?(identity: CommunicationIdentity, code: string): Promise<UserId | undefined>;

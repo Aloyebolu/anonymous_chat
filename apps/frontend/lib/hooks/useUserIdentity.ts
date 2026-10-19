@@ -1,19 +1,29 @@
 "use client";
+
 import { useCallback, useEffect, useState } from "react";
-import { DEFAULT_USER } from "../constants";
 
 export const useUserIdentity = () => {
-  const [user, setUser] = useState<string>(DEFAULT_USER);
+  const [user, setUser] = useState("");
+  const [token, setToken] = useState("");
 
   useEffect(() => {
-    const stored = typeof window !== "undefined" ? window.localStorage.getItem("chat.user") : null;
-    if (stored) setUser(stored);
+    setUser(window.sessionStorage.getItem("chat.username") ?? "");
+    setToken(window.sessionStorage.getItem("chat.token") ?? "");
   }, []);
 
-  const update = useCallback((next: string) => {
-    setUser(next);
-    if (typeof window !== "undefined") window.localStorage.setItem("chat.user", next);
+  const signIn = useCallback((username: string, accessToken: string) => {
+    setUser(username);
+    setToken(accessToken);
+    window.sessionStorage.setItem("chat.username", username);
+    window.sessionStorage.setItem("chat.token", accessToken);
   }, []);
 
-  return { user, setUser: update };
+  const signOut = useCallback(() => {
+    setUser("");
+    setToken("");
+    window.sessionStorage.removeItem("chat.username");
+    window.sessionStorage.removeItem("chat.token");
+  }, []);
+
+  return { user, token, signIn, signOut };
 };

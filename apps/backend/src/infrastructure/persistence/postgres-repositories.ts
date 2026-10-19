@@ -58,6 +58,14 @@ export class PostgresUserRepository implements UserRepository {
     return result.rows[0]?.payload;
   }
 
+  async identityForChannelExternalId(channel: string, externalId: string): Promise<CommunicationIdentity | undefined> {
+    const result = await this.db.query<{ payload: CommunicationIdentity }>(
+      "SELECT payload FROM communication_identities WHERE channel = $1 AND external_id = $2",
+      [channel, externalId]
+    );
+    return result.rows[0]?.payload;
+  }
+
   async allIdentities(): Promise<readonly CommunicationIdentity[]> {
     const result = await this.db.query<{ payload: CommunicationIdentity }>(
       "SELECT payload FROM communication_identities ORDER BY channel, external_id"

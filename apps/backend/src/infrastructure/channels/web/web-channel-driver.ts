@@ -1,6 +1,8 @@
 import { createServer, type IncomingMessage, type RequestListener, type Server, type ServerResponse } from "node:http";
-import { userId } from "../../../domain/types.js";
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { userId, type UserId, type UserProfile } from "../../../domain/types.js";
 import type { ChannelCapabilities, ChannelDriver, ChannelRecipient, InboundEvent, OutboundMessage } from "../../../ports/channels.js";
+import type { UserRepository } from "../../../ports/repositories.js";
 import { applyCors, handlePreflight } from "../../http/cors.js";
 import { API_PATHS } from "@anonymous-chat/shared/api";
 import type { MediaPayload } from "@anonymous-chat/shared/channel-contracts";
@@ -8,6 +10,8 @@ import type { MediaPayload } from "@anonymous-chat/shared/channel-contracts";
 const COMMANDS = new Set(["start", "find", "next", "leave", "report", "block", "help", "points", "vip", "end", "app", "settings"]);
 const MAX_MEDIA_BYTES = 5 * 1024 * 1024;
 const MAX_REQUEST_BYTES = 7 * 1024 * 1024;
+const WEB_SESSION_MS = 30 * 24 * 60 * 60 * 1000;
+const WEB_SESSION_LIMIT = 10;
 
 export interface WebChannelOptions {
   readonly port: number;
@@ -31,7 +35,7 @@ export class WebChannelDriver implements ChannelDriver {
   private fallbackHandler?: RequestListener;
   private readonly clients = new Map<string, Set<Client>>();
 
-  constructor(private readonly options: WebChannelOptions) {}
+  constructor(private readonly options: WebChannelOptions, private readonly users?: UserRepository) {}
 
   get port(): number | undefined { return this.boundPort; }
   get httpServer(): Server {
@@ -93,7 +97,9 @@ export class WebChannelDriver implements ChannelDriver {
       res.end(JSON.stringify({ ok: true, clients: this.clients.size }));
       return;
     }
-    if (req.method === "GET" && url.pathname === API_PATHS.stream) return this.serveStream(url, res);
+    if (this.users && req.method === "POST" && url.pathname === API_PATHS.web.register) return this.register(req, res);
+    if (this.users && req.method === "POST" && url.pathname === API_PATHS.web.login) return this.login(req, res);
+    if (req.method === "GET" && url.pathname === API_PATHS.stream) return this.serveStream(req, url, res);
     if (req.method === "POST" && url.pathname === API_PATHS.send) return this.acceptSend(req, res);
     if (this.fallbackHandler) {
       this.fallbackHandler(req, res);
@@ -103,9 +109,13 @@ export class WebChannelDriver implements ChannelDriver {
     res.end("Not found");
   }
 
-  private serveStream(url: URL, res: ServerResponse): void {
+  private async serveStream(req: IncomingMessage, url: URL, res: ServerResponse): Promise<void> {
     const user = url.searchParams.get("user");
     if (!user) { res.statusCode = 400; res.end("Missing user"); return; }
+    if (this.users) {
+      const authenticatedUser = await this.authenticate(this.bearer(req) ?? url.searchParams.get("token") ?? undefined);
+      if (!authenticatedUser || authenticatedUser !== user) { res.statusCode = 401; res.end("Unauthorized"); return; }
+    }
     res.setHeader("content-type", "text/event-stream");
     res.setHeader("cache-control", "no-cache");
     res.setHeader("connection", "keep-alive");
@@ -136,6 +146,10 @@ export class WebChannelDriver implements ChannelDriver {
     const media = parseMedia(body?.media);
     if (body?.media !== undefined && !media) { res.statusCode = 400; res.end("Invalid media payload"); return; }
     if (!user || (!text && !actionId && !media)) { res.statusCode = 400; res.end("Missing user or text/actionId/media"); return; }
+    if (this.users) {
+      const authenticatedUser = await this.authenticate(this.bearer(req));
+      if (!authenticatedUser || authenticatedUser !== user) { res.statusCode = 401; res.end("Unauthorized"); return; }
+    }
     const timestamp = new Date();
     const identity = { userId: userId(""), channel: this.type, externalId: user };
     const event: InboundEvent = actionId
@@ -159,6 +173,114 @@ export class WebChannelDriver implements ChannelDriver {
       res.statusCode = 500;
       res.end("Failed");
     }
+  }
+
+  private async register(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const body = await this.readAuthBody(req, res);
+    if (!body) return;
+    const username = typeof body.username === "string" ? body.username.trim().toLowerCase() : "";
+    const password = typeof body.password === "string" ? body.password : "";
+    if (!/^[a-z0-9_]{3,20}$/.test(username) || password.length < 5 || password.length > 128) {
+      this.json(res, 400, { error: "Use a 3–20 character username and a password of at least 5 characters." });
+      return;
+    }
+    const identity = await this.users!.findOrCreate({ channel: this.type, externalId: username });
+    const existing = await this.users!.profileFor(identity.userId);
+    if (existing?.webPasswordHash || existing?.moderator || existing?.operator) {
+      this.json(res, 409, { error: "That username is already registered." });
+      return;
+    }
+    const salt = randomBytes(16).toString("hex");
+    const profile: UserProfile = {
+      ...(existing ?? {
+        userId: identity.userId,
+        gender: "nonbinary",
+        country: "Not provided",
+        preferredGender: "any"
+      }),
+      displayName: username,
+      webPasswordSalt: salt,
+      webPasswordHash: scryptSync(password, salt, 64).toString("hex")
+    };
+    await this.users!.saveProfile(profile);
+    const token = await this.issueSession(identity.userId, profile);
+    this.json(res, 201, { username, token });
+  }
+
+  private async login(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const body = await this.readAuthBody(req, res);
+    if (!body) return;
+    const username = typeof body.username === "string" ? body.username.trim().toLowerCase() : "";
+    const password = typeof body.password === "string" ? body.password : "";
+    const identity = await this.users!.identityForChannelExternalId(this.type, username);
+    const profile = identity ? await this.users!.profileFor(identity.userId) : undefined;
+    const suppliedHash = profile?.webPasswordSalt && profile.webPasswordHash
+      ? scryptSync(password, profile.webPasswordSalt, 64)
+      : scryptSync(password || "invalid-password", "invalid-web-login-salt", 64);
+    const expectedHash = profile?.webPasswordHash ? Buffer.from(profile.webPasswordHash, "hex") : Buffer.alloc(64);
+    const valid = Boolean(identity && profile?.webPasswordSalt && profile.webPasswordHash &&
+      expectedHash.length === suppliedHash.length && timingSafeEqual(expectedHash, suppliedHash));
+    if (!valid || !identity || !profile) {
+      this.json(res, 401, { error: "Invalid username or password." });
+      return;
+    }
+    const token = await this.issueSession(identity.userId, profile);
+    this.json(res, 200, { username, token });
+  }
+
+  private async issueSession(userIdValue: UserId, profile: UserProfile): Promise<string> {
+    const identity = await this.users!.identityFor(userIdValue, this.type);
+    if (!identity) throw new Error("Web account identity is missing.");
+    const token = `${identity.externalId}.${randomBytes(32).toString("base64url")}`;
+    const now = Date.now();
+    const sessions = (profile.webSessions ?? []).filter((session) => Date.parse(session.expiresAt) > now);
+    sessions.push({
+      tokenHash: createHash("sha256").update(token).digest("hex"),
+      expiresAt: new Date(now + WEB_SESSION_MS).toISOString()
+    });
+    await this.users!.saveProfile({ ...profile, userId: userIdValue, webSessions: sessions.slice(-WEB_SESSION_LIMIT) });
+    return token;
+  }
+
+  private async authenticate(token: string | undefined): Promise<string | undefined> {
+    if (!token || !this.users) return undefined;
+    const separator = token.indexOf(".");
+    if (separator < 1) return undefined;
+    const username = token.slice(0, separator);
+    const identity = await this.users.identityForChannelExternalId(this.type, username);
+    if (!identity) return undefined;
+    const candidate = Buffer.from(createHash("sha256").update(token).digest("hex"), "hex");
+    const now = Date.now();
+    const profile = await this.users.profileFor(identity.userId);
+    for (const session of profile?.webSessions ?? []) {
+      if (Date.parse(session.expiresAt) <= now) continue;
+      const expected = Buffer.from(session.tokenHash, "hex");
+      if (expected.length === candidate.length && timingSafeEqual(expected, candidate)) return identity.externalId;
+    }
+    return undefined;
+  }
+
+  private bearer(req: IncomingMessage): string | undefined {
+    const match = req.headers.authorization?.match(/^Bearer\s+(.+)$/i);
+    return match?.[1];
+  }
+
+  private async readAuthBody(req: IncomingMessage, res: ServerResponse): Promise<Record<string, unknown> | undefined> {
+    try {
+      const body = await readJson(req);
+      if (!body) this.json(res, 400, { error: "A JSON request body is required." });
+      return body;
+    } catch (error) {
+      console.warn("[web] Rejected oversized authentication request.", error);
+      this.json(res, 413, { error: "Request body too large." });
+      return undefined;
+    }
+  }
+
+  private json(res: ServerResponse, status: number, value: unknown): void {
+    res.statusCode = status;
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify(value));
   }
 
   private textEvent(identity: InboundEvent["identity"], text: string, timestamp: Date): InboundEvent {

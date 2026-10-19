@@ -228,7 +228,17 @@ export const StaffWorkspace = ({ role }: { readonly role: StaffRole }) => {
                     {session.messages.length === 0 ? <p className="staff-muted">Say hello to start the conversation.</p> :
                       session.messages.map((message) => (
                         <div className={`staff-message ${message.fromUserId === state.userId ? "staff-message-self" : ""}`} key={message.id}>
-                          <p>{message.text}</p>
+                          {message.media?.url && (message.media.kind === "image" || message.media.kind === "sticker") &&
+                            <img className="staff-media-image" src={message.media.url} alt={message.caption || "Participant attachment"} />}
+                          {message.media?.url && message.media.kind === "video" &&
+                            <video className="staff-media-video" controls src={message.media.url} />}
+                          {message.media?.url && (message.media.kind === "audio" || message.media.kind === "voice") &&
+                            <audio controls src={message.media.url} />}
+                          {message.media?.url && message.media.kind === "document" &&
+                            <a href={message.media.url} download={message.media.filename} target="_blank" rel="noreferrer">
+                              {message.media.filename || "Open attachment"}
+                            </a>}
+                          {message.caption ? <p>{message.caption}</p> : !message.media && <p>{message.text}</p>}
                           <time>{new Date(message.timestamp).toLocaleTimeString()}</time>
                         </div>
                       ))}
@@ -305,6 +315,10 @@ const CSS = `
 .staff-messages{display:flex;flex:1;min-height:220px;max-height:380px;flex-direction:column;gap:9px;overflow:auto;border-radius:12px;padding:12px;background:#f6f7fb}
 .staff-message{max-width:88%;align-self:flex-start;border-radius:13px 13px 13px 4px;padding:9px 11px;background:white;box-shadow:0 2px 5px #1c25450a;overflow-wrap:anywhere}
 .staff-message p{margin:0;white-space:pre-wrap;font-size:13px;line-height:1.45}
+.staff-media-image,.staff-media-video{display:block;max-width:min(100%,360px);max-height:300px;border-radius:9px;object-fit:contain}
+.staff-media-image[src$=".webp"]{width:auto}
+.staff-message audio{max-width:100%}
+.staff-message>a{color:#5141b5;font-size:12px;overflow-wrap:anywhere}
 .staff-message time{display:block;margin-top:5px;color:#8b93a4;font-size:9px;text-align:right}
 .staff-message-self{align-self:flex-end;border-radius:13px 13px 4px 13px;background:#e8e3ff}
 .staff-quick-messages{display:flex;gap:7px;overflow-x:auto;padding:1px 0 3px}

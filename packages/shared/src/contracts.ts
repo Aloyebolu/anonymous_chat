@@ -1,4 +1,5 @@
 import type { OutboundMessage } from "./channel-contracts.js";
+import type { MediaKind } from "./channel-contracts.js";
 import type { UserProfile } from "./domain.js";
 
 export type WebOutboundMessage = Extract<OutboundMessage, { readonly kind: "text" | "interaction" | "media" }>;
@@ -125,6 +126,13 @@ export interface MessageLogEntryDto {
   readonly text: string;
   readonly timestamp: string;
   readonly direction: "inbound" | "outbound";
+  readonly media?: {
+    readonly kind: MediaKind;
+    readonly mimeType?: string;
+    readonly filename?: string;
+    readonly url?: string;
+  };
+  readonly caption?: string;
 }
 
 export interface ReportedUserSummary {

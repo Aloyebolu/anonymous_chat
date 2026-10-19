@@ -90,7 +90,7 @@ async function main(): Promise<void> {
   // ---- Channels ------------------------------------------------------------
   const registry = new ChannelRegistry();
 
-  const web = new WebChannelDriver({ port: HTTP_PORT, host: HTTP_HOST });
+  const web = new WebChannelDriver({ port: HTTP_PORT, host: HTTP_HOST }, users);
   registry.register(web);
 
   // ---- Application ---------------------------------------------------------

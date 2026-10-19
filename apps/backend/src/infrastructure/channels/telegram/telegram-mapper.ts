@@ -26,6 +26,7 @@ export interface TelegramUpdateShape {
     readonly chat?: { readonly id?: number };
     readonly date?: number;
     readonly text?: string;
+    readonly caption?: string;
     // ─── media ───
     readonly photo?: readonly { readonly file_id: string; readonly file_size?: number }[];
     readonly video?: { readonly file_id: string; readonly mime_type?: string; readonly file_size?: number; readonly duration?: number };
@@ -106,7 +107,7 @@ export const mapTelegramInbound = (raw: unknown): InboundEvent | undefined => {
       channel,
       identity,
       externalMessageId,
-      content: { kind: "media", media },
+      content: { kind: "media", media, caption: message.caption },
       timestamp
     };
   }

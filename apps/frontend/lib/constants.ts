@@ -60,5 +60,4 @@ export const STRINGS = {
   commands: CHAT_COMMANDS
 } as const;
 
-export const DEFAULT_USER = "alice";
 export const STREAM_RECONNECT_MS = 1000;

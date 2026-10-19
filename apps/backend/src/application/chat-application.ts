@@ -101,7 +101,7 @@ export class ChatApplication {
     if (event.kind === "payment") return this.handlePayment(identity, event.receipt);
 
     // event.kind === "message"
-    if (event.content.kind === "media") return this.handleMedia(identity, event.content.media);
+    if (event.content.kind === "media") return this.handleMedia(identity, event.content.media, event.content.caption);
     return this.handleMessage(identity, event.content.text, event.externalMessageId);
   }
 
@@ -111,7 +111,8 @@ export class ChatApplication {
     identity: CommunicationIdentity,
     profile: Omit<UserProfile, "userId">
   ): Promise<void> {
-    await this.users.saveProfile({ ...profile, userId: identity.userId });
+    const existing = await this.users.profileFor(identity.userId);
+    await this.users.saveProfile({ ...existing, ...profile, userId: identity.userId });
   }
 
   async runMatchmakingSweep(): Promise<void> {
@@ -587,7 +588,7 @@ export class ChatApplication {
 
   // ─── Inbound media ──────────────────────────────────────────────────────
 
-private async handleMedia(identity: CommunicationIdentity, media: MediaPayload): Promise<void> {
+private async handleMedia(identity: CommunicationIdentity, media: MediaPayload, caption?: string): Promise<void> {
   const gate = await this.resolveConversationFor(identity);
   if (!gate.ok) {
     if (gate.reason) await this.send(identity, { kind: "text", text: gate.reason });
@@ -605,11 +606,15 @@ private async handleMedia(identity: CommunicationIdentity, media: MediaPayload):
   if (!targetDriver.capabilities.media.includes(media.kind)) {
     return this.send(identity, { kind: "text", text: MSG.mediaUnsupportedByPartner });
   }
+  if (media.kind === "sticker" && media.mimeType && media.mimeType !== "image/webp") {
+    return this.send(identity, { kind: "text", text: MSG.mediaUnsupportedByPartner });
+  }
 
   // Reuse native references only when the destination adapter supports them;
   // otherwise materialize the source as bytes or a URL, even within one channel.
   let outgoing = media;
   if (
+    conversation.kind === "operator" ||
     identity.channel !== partner.identity.channel ||
     (!media.url && !media.bytes && !targetDriver.acceptsNativeMediaRefs)
   ) {
@@ -628,17 +633,23 @@ private async handleMedia(identity: CommunicationIdentity, media: MediaPayload):
     }
   }
 
+  if (media.kind === "sticker" && outgoing.bytes && !isWebp(outgoing.bytes)) {
+    return this.send(identity, { kind: "text", text: MSG.mediaUnsupportedByPartner });
+  }
+
   this.log.append({
     id: crypto.randomUUID(),
     conversationId: conversation.id,
     fromUserId: identity.userId,
     toUserId: partner.userId,
-    text: `[${media.kind}]`,
+    text: caption || `[${media.kind}]`,
     timestamp: new Date(),
-    direction: "inbound"
+    direction: "inbound",
+    media: outgoing,
+    caption
   });
 
-  await this.send(partner.identity, { kind: "media", media: outgoing });
+  await this.send(partner.identity, { kind: "media", media: outgoing, caption });
 }
 
   // ─── Inbound payment ────────────────────────────────────────────────────
@@ -868,3 +879,8 @@ private async handleMedia(identity: CommunicationIdentity, media: MediaPayload):
 }
 
 void AI_EXTERNAL_ID_ALIAS;
+
+const isWebp = (bytes: Uint8Array): boolean =>
+  bytes.byteLength >= 12 &&
+  String.fromCharCode(...bytes.subarray(0, 4)) === "RIFF" &&
+  String.fromCharCode(...bytes.subarray(8, 12)) === "WEBP";

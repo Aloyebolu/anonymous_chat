@@ -3,9 +3,9 @@ import { useCallback } from "react";
 import { sendInbound } from "../services/api";
 import type { SendPayload } from "../services/api";
 
-export const useSendMessage = (user: string) => {
+export const useSendMessage = (user: string, token: string) => {
   return useCallback(async (payload: Omit<SendPayload, "user">) => {
-    if (!user) return;
-    await sendInbound({ user, ...payload });
-  }, [user]);
+    if (!user || !token) return;
+    await sendInbound({ user, ...payload }, token);
+  }, [token, user]);
 };

@@ -145,6 +145,11 @@ export class WhatsAppChannelDriver implements ChannelDriver {
       );
       return undefined;
     }
+    if (message.media.kind === "sticker" &&
+      (message.media.mimeType !== "image/webp" || !message.media.bytes || !isWebp(message.media.bytes))) {
+      console.warn("[whatsapp] Refusing to send a sticker that is not valid WebP bytes.");
+      return undefined;
+    }
 
     const bridgeMedia = this.toBridgeMedia(message);
     return this.socket.sendMedia(recipient.externalId, bridgeMedia);
@@ -240,3 +245,8 @@ export class WhatsAppChannelDriver implements ChannelDriver {
     return event;
   }
 }
+
+const isWebp = (bytes: Uint8Array): boolean =>
+  bytes.byteLength >= 12 &&
+  String.fromCharCode(...bytes.subarray(0, 4)) === "RIFF" &&
+  String.fromCharCode(...bytes.subarray(8, 12)) === "WEBP";

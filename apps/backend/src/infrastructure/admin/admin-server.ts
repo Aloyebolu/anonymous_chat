@@ -12,7 +12,7 @@ import type {
   ReportedUserSummary
 } from "@anonymous-chat/shared/contracts";
 import { API_PATHS, API_PREFIX } from "@anonymous-chat/shared/api";
-import { AI_CHANNEL, conversationId as brandConversationId, userId as brandUserId, type CommunicationIdentity, type UserId, type UserProfile } from "../../domain/types.js";
+import { AI_CHANNEL, conversationId as brandConversationId, userId as brandUserId, type CommunicationIdentity, type MessageLogEntry, type UserId, type UserProfile } from "../../domain/types.js";
 import type { MatchmakingConfig } from "../../application/matchmaking.js";
 import type { MatchmakingService } from "../../application/matchmaking.js";
 import type { ConversationRepository, MatchQueueRepository, UserRepository } from "../../ports/repositories.js";
@@ -447,9 +447,8 @@ export class AdminServer {
         const id = url.searchParams.get("conversationId");
         if (!id) { res.statusCode = 400; res.end("conversationId required"); return; }
         const entries: MessageLogEntryDto[] = this.deps.log.entriesFor(brandConversationId(id)).map((entry) => ({
-          ...entry,
-          timestamp: entry.timestamp.toISOString()
-        }));
+            ...toMessageLogDto(entry)
+          }));
         return this.json(res, { entries });
       }
 
@@ -680,8 +679,7 @@ export class AdminServer {
           preferredCountry: profile.preferredCountry
         },
         messages: this.deps.log.entriesFor(conversation.id).map((entry) => ({
-          ...entry,
-          timestamp: entry.timestamp.toISOString()
+          ...toMessageLogDto(entry)
         }))
       });
     }
@@ -724,6 +722,23 @@ export class AdminServer {
 }
 
 const hashToken = (value: string): string => createHash("sha256").update(value).digest("hex");
+
+const toMessageLogDto = (entry: MessageLogEntry): MessageLogEntryDto => ({
+  ...entry,
+  timestamp: entry.timestamp.toISOString(),
+  media: entry.media ? {
+    kind: entry.media.kind,
+    mimeType: entry.media.mimeType,
+    filename: entry.media.filename,
+    url: entry.media.url ?? (entry.media.bytes
+      ? `data:${safeMimeType(entry.media.mimeType)};base64,${Buffer.from(entry.media.bytes).toString("base64")}`
+      : undefined)
+  } : undefined,
+  caption: entry.caption
+});
+
+const safeMimeType = (mimeType?: string): string =>
+  mimeType && /^[\w.+-]+\/[\w.+-]+$/.test(mimeType) ? mimeType : "application/octet-stream";
 
 const readJson = async (req: IncomingMessage): Promise<Record<string, unknown> | undefined> => {
   const chunks: Buffer[] = [];

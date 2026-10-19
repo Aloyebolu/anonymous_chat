@@ -1,5 +1,11 @@
 # anonymous_chat
 
+## Web chat
+
+The project landing page lists the available chat channels. Web chat is served at `/chat`; users create an account with a 3–20 character username (letters, numbers, and underscores) and a password of at least 10 characters. Account passwords are stored as salted scrypt hashes, and web sessions expire after 30 days.
+
+Set `NEXT_PUBLIC_TELEGRAM_URL` and `NEXT_PUBLIC_WHATSAPP_URL` in the frontend environment to show the Telegram and WhatsApp channel links on the landing page. The web channel is always available at `/chat`.
+
 ## Staff multi-session workspace
 
 Moderators can open `/moderator` with their existing moderator token, select connected channels, choose a concurrent-session limit from 1 to 10, and enable automatic assignments. Their live chat workspace is available at `/moderator/sessions`.

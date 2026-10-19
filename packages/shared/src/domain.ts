@@ -1,3 +1,5 @@
+import type { MediaPayload } from "./channel-contracts.js";
+
 export type Brand<Value, Name extends string> = Value & { readonly __brand: Name };
 export type UserId = Brand<string, "UserId">;
 export type ConversationId = Brand<string, "ConversationId">;
@@ -41,6 +43,12 @@ export interface UserProfile {
   readonly operatorAccessHash?: string;
   readonly moderatorLinkCodeHash?: string;
   readonly moderatorLinkCodeExpiresAt?: string;
+  readonly webPasswordSalt?: string;
+  readonly webPasswordHash?: string;
+  readonly webSessions?: readonly {
+    readonly tokenHash: string;
+    readonly expiresAt: string;
+  }[];
 }
 
 export const isVipProfile = (profile: UserProfile | undefined, now = Date.now()): boolean =>
@@ -103,4 +111,6 @@ export interface MessageLogEntry {
   readonly text: string;
   readonly timestamp: Date;
   readonly direction: "inbound" | "outbound";
+  readonly media?: MediaPayload;
+  readonly caption?: string;
 }

@@ -9,14 +9,14 @@ export interface ChatEntry {
   readonly message: OutboundMessage;
 }
 
-export const useChatStream = (user: string) => {
+export const useChatStream = (user: string, token: string) => {
   const [entries, setEntries] = useState<ChatEntry[]>([]);
   const counter = useRef(0);
 
   useEffect(() => {
     setEntries([]);
-    if (!user) return;
-    const handle = openStream(user, (event) => {
+    if (!user || !token) return;
+    const handle = openStream(user, token, (event) => {
       if (event.kind === "delete") {
         setEntries((prev) => prev.filter((entry) => entry.id !== event.messageId));
         return;
@@ -29,7 +29,7 @@ export const useChatStream = (user: string) => {
       }]);
     });
     return () => handle.close();
-  }, [user]);
+  }, [token, user]);
 
   const appendOutbound = (message: OutboundMessage) => {
     counter.current += 1;

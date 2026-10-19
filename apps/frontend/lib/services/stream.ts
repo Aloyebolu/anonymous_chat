@@ -5,10 +5,11 @@ export interface StreamHandle { close: () => void }
 
 export const openStream = (
   user: string,
+  token: string,
   onMessage: (message: WebStreamEvent) => void,
   onError?: (error: Event) => void
 ): StreamHandle => {
-  const source = new EventSource(streamUrl(user));
+  const source = new EventSource(streamUrl(user, token));
   source.onmessage = (event) => {
     try {
       const parsed = JSON.parse(event.data) as WebStreamEvent;

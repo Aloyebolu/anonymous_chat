@@ -18,6 +18,7 @@ export interface TelegramBotBridge {
     sendMedia?(chatId: string, media: MediaPayload, caption?: string): Promise<string | undefined>;
     deleteMessage?(chatId: string, messageId: string): Promise<void>;
     resolveMediaUrl?(fileId: string): Promise<string | undefined>;
+    downloadMedia?(fileId: string): Promise<Uint8Array | undefined>;
     close(): Promise<void>;
 }
 export class TelegramChannelDriver implements ChannelDriver {
@@ -145,8 +146,11 @@ export class TelegramChannelDriver implements ChannelDriver {
     async resolveMedia(media: MediaPayload): Promise<MediaPayload> {
         if (media.url || media.bytes) return media; // already portable
         if (!media.channelRef) return media;         // nothing to resolve
+        if (this.bot.downloadMedia) {
+            const bytes = await this.bot.downloadMedia(media.channelRef);
+            return bytes ? { ...media, bytes, channelRef: undefined, url: undefined, sizeBytes: bytes.byteLength } : media;
+        }
         if (!this.bot.resolveMediaUrl) return media;
-
         const url = await this.bot.resolveMediaUrl(media.channelRef);
         if (!url) return media;
         return { ...media, url, channelRef: undefined };

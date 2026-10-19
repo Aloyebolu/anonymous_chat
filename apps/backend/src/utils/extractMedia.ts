@@ -48,7 +48,14 @@ export const extractMedia = (message: NonNullable<TelegramUpdateShape["message"]
     };
   }
   if (message.sticker) {
-    return { kind: "sticker", channelRef: message.sticker.file_id };
+    if (message.sticker.is_video) {
+      return { kind: "video", channelRef: message.sticker.file_id, mimeType: "video/webm" };
+    }
+    return {
+      kind: "sticker",
+      channelRef: message.sticker.file_id,
+      mimeType: message.sticker.is_animated ? "application/x-tgsticker" : "image/webp"
+    };
   }
   if (message.animation) {
     return {

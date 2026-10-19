@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { WebChannelDriver } from "../src/infrastructure/channels/web/web-channel-driver.js";
 import type { InboundEvent } from "../src/ports/channels.js";
+import { InMemoryUserRepository } from "../src/infrastructure/persistence/in-memory-repositories.js";
 
 const baseUrl = (driver: WebChannelDriver) => `http://127.0.0.1:${driver.port}`;
 
@@ -148,6 +149,61 @@ describe("web channel driver", () => {
     await driver.start(async () => {});
     try {
       await driver.sendMessage({ channel: "web", externalId: "nobody" }, { kind: "text", text: "hi" });
+    } finally {
+      await driver.stop();
+    }
+  });
+
+  it("registers and authenticates web accounts for sends and streams", async () => {
+    const users = new InMemoryUserRepository();
+    const driver = new WebChannelDriver({ port: 0 }, users);
+    const received: InboundEvent[] = [];
+    await driver.start(async (event) => { received.push(event); });
+    try {
+      const register = await fetch(`${baseUrl(driver)}/api/web/register`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ username: "Chat_User", password: "some-long-password" })
+      });
+      expect(register.status).toBe(201);
+      const account = await register.json() as { username: string; token: string };
+      expect(account.username).toBe("chat_user");
+
+      const denied = await fetch(`${baseUrl(driver)}/api/send`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ user: account.username, text: "not authenticated" })
+      });
+      expect(denied.status).toBe(401);
+
+      const sent = await fetch(`${baseUrl(driver)}/api/send`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${account.token}`,
+        },
+        body: JSON.stringify({ user: account.username, text: "authenticated" })
+      });
+      expect(sent.status).toBe(204);
+      expect(received[0].identity.externalId).toBe(account.username);
+
+      const stream = await fetch(`${baseUrl(driver)}/api/stream?user=${account.username}&token=${encodeURIComponent(account.token)}`);
+      expect(stream.status).toBe(200);
+      await stream.body?.cancel();
+
+      const login = await fetch(`${baseUrl(driver)}/api/web/login`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ username: account.username, password: "some-long-password" })
+      });
+      expect(login.status).toBe(200);
+
+      const badLogin = await fetch(`${baseUrl(driver)}/api/web/login`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ username: account.username, password: "wrong-password" })
+      });
+      expect(badLogin.status).toBe(401);
     } finally {
       await driver.stop();
     }

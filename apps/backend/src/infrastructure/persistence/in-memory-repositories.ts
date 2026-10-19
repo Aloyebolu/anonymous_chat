@@ -17,6 +17,10 @@ export class InMemoryUserRepository implements UserRepository {
     return found;
   }
 
+  async identityForChannelExternalId(channel: string, externalId: string): Promise<CommunicationIdentity | undefined> {
+    return this.identities.get(`${channel}:${externalId}`);
+  }
+
   async identityFor(id: UserId, preferredChannel?: string): Promise<CommunicationIdentity | undefined> {
     return [...this.identities.values()].find((identity) => identity.userId === id && (!preferredChannel || identity.channel === preferredChannel));
   }

@@ -17,6 +17,8 @@ class FakeSocket implements BaileysSocketBridge {
   emit(raw: unknown): void { this.handler?.(raw); }
 }
 
+const validWebp = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]);
+
 describe("WhatsApp channel driver", () => {
   it("sends plain text outbound", async () => {
     const socket = new FakeSocket();
@@ -38,13 +40,24 @@ describe("WhatsApp channel driver", () => {
     const driver = new WhatsAppChannelDriver(socket, mapBaileysInbound);
     const messageId = await driver.sendMessage(
       { channel: "whatsapp", externalId: "a@s.whatsapp.net" },
-      { kind: "media", media: { kind: "sticker", bytes: new Uint8Array([1, 2, 3]), mimeType: "image/webp" } }
+      { kind: "media", media: { kind: "sticker", bytes: validWebp, mimeType: "image/webp" } }
     );
     expect(messageId).toBe("wa-media-id");
     expect(socket.mediaSent).toMatchObject({
       jid: "a@s.whatsapp.net",
-      media: { type: "sticker", data: new Uint8Array([1, 2, 3]) }
+      media: { type: "sticker", data: validWebp }
     });
+  });
+
+  it("rejects malformed WebP sticker bytes instead of forwarding a damaged sticker", async () => {
+    const socket = new FakeSocket();
+    const driver = new WhatsAppChannelDriver(socket, mapBaileysInbound);
+    const messageId = await driver.sendMessage(
+      { channel: "whatsapp", externalId: "a@s.whatsapp.net" },
+      { kind: "media", media: { kind: "sticker", bytes: new Uint8Array([1, 2, 3]), mimeType: "image/webp" } }
+    );
+    expect(messageId).toBeUndefined();
+    expect(socket.mediaSent).toBeUndefined();
   });
 
   it("converts HTML-formatted text to readable plain text", async () => {
